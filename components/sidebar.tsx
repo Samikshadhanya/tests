@@ -5,10 +5,13 @@ import { usePathname } from 'next/navigation';
 import {
   BarChart3,
   Bell,
+  Calendar,
+  Download,
   Home,
   LayoutGrid,
   Package,
   Settings,
+  ShieldAlert,
   ShoppingCart,
   X,
   Users,
@@ -27,10 +30,13 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const menuItems = [
     { icon: LayoutGrid, label: 'Dashboard', href: '/dashboard' },
     { icon: Users, label: 'Family Profiles', href: '/family-profiles' },
+    { icon: Calendar, label: 'Appointments', href: '/appointments' },
     { icon: Package, label: 'Inventory', href: '/inventory' },
     { icon: Bell, label: 'Reminders', href: '/reminders', count: reminderAlertCount },
     { icon: ShoppingCart, label: 'Purchase List', href: '/purchase-list' },
     { icon: BarChart3, label: 'Reports', href: '/reports' },
+    { icon: Download, label: 'Export Data', href: '/export' },
+    { icon: ShieldAlert, label: 'Emergency SOS', href: '/emergency' },
     { icon: Settings, label: 'Settings', href: '/settings' },
   ];
 

@@ -38,6 +38,10 @@ export default function FamilyProfilePage() {
   
   const [caretakerName, setCaretakerName] = useState('');
   const [caretakerContact, setCaretakerContact] = useState('');
+  const [caretakerEmail, setCaretakerEmail] = useState('');
+  const [caretakerRelationship, setCaretakerRelationship] = useState('Son');
+  const [caretakerAccessLevel, setCaretakerAccessLevel] = useState('Full Access');
+  const [caretakerNotes, setCaretakerNotes] = useState('');
   const [medicineForm, setMedicineForm] = useState({
     name: '',
     category: 'Prescription',
@@ -450,13 +454,19 @@ export default function FamilyProfilePage() {
               try {
                 await addCaregiver({ 
                   name: caretakerName.trim(), 
-                  relationship: 'Caretaker', 
-                  accessLevel: 'Full Access',
+                  relationship: caretakerRelationship, 
+                  accessLevel: caretakerAccessLevel as any,
                   phone: caretakerContact.trim(),
+                  email: caretakerEmail.trim(),
+                  notes: caretakerNotes.trim(),
                 });
                 setIsAddingCaretaker(false);
                 setCaretakerName('');
                 setCaretakerContact('');
+                setCaretakerEmail('');
+                setCaretakerRelationship('Son');
+                setCaretakerAccessLevel('Full Access');
+                setCaretakerNotes('');
               } catch (error) {
                 console.error(error);
                 alert("Failed to add caretaker");
@@ -472,14 +482,61 @@ export default function FamilyProfilePage() {
                   placeholder="e.g. John Smith"
                 />
               </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Relationship</label>
+                  <input 
+                    required
+                    value={caretakerRelationship}
+                    onChange={(e) => setCaretakerRelationship(e.target.value)}
+                    className="min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                    placeholder="e.g. Son, Daughter, Nurse"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Access Level</label>
+                  <select 
+                    value={caretakerAccessLevel}
+                    onChange={(e) => setCaretakerAccessLevel(e.target.value)}
+                    className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                  >
+                    <option>Full Access</option>
+                    <option>View Only</option>
+                    <option>Emergency Only</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Phone</label>
+                  <input 
+                    value={caretakerContact}
+                    onChange={(e) => setCaretakerContact(e.target.value)}
+                    className="min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                    placeholder="e.g. +1 234 567 8900"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Email</label>
+                  <input 
+                    type="email"
+                    value={caretakerEmail}
+                    onChange={(e) => setCaretakerEmail(e.target.value)}
+                    className="min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                    placeholder="e.g. email@example.com"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">Contact No</label>
-                <input 
-                  required
-                  value={caretakerContact}
-                  onChange={(e) => setCaretakerContact(e.target.value)}
-                  className="min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
-                  placeholder="e.g. +1 234 567 8900"
+                <label className="text-sm font-medium text-slate-700">Notes</label>
+                <textarea 
+                  value={caretakerNotes}
+                  onChange={(e) => setCaretakerNotes(e.target.value)}
+                  className="min-h-24 w-full resize-none rounded-lg border border-slate-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                  placeholder="e.g. Call only after 5 PM"
                 />
               </div>
               <div className="pt-4 flex justify-end gap-3">

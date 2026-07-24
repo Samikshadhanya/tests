@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp, type FirebaseOptions } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, browserLocalPersistence, initializeAuth, type Auth } from 'firebase/auth';
-import { getFirestore, initializeFirestore, persistentLocalCache, type Firestore } from 'firebase/firestore';
+import { getAuth, GoogleAuthProvider, browserLocalPersistence, type Auth } from 'firebase/auth';
+import { initializeFirestore, persistentLocalCache, type Firestore } from 'firebase/firestore';
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,

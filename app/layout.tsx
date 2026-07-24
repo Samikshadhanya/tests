@@ -23,6 +23,7 @@ export const metadata: Metadata = {
     type: 'website',
     images: ['/icon.svg'],
   },
+  manifest: '/manifest.json',
   generator: 'MedHome',
   icons: {
     icon: '/icon.svg',
@@ -42,6 +43,17 @@ export default function RootLayout({
           <NetworkStatusIndicator />
           <AppProvider>{children}</AppProvider>
           {process.env.NODE_ENV === 'production' && <Analytics />}
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                if ('serviceWorker' in navigator) {
+                  window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('/sw.js');
+                  });
+                }
+              `,
+            }}
+          />
         </ErrorBoundary>
       </body>
     </html>

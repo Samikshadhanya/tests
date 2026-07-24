@@ -38,7 +38,7 @@ export default function LoginPage() {
 
   // Auto-redirect if already logged in (e.g., page refresh or successful background sign-in)
   React.useEffect(() => {
-    if (user?.email) {
+    if (user?.uid) {
       router.push('/dashboard');
     }
   }, [user, router]);

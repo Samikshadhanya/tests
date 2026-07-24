@@ -59,6 +59,19 @@ export type Caregiver = {
   status: 'Active' | 'Invited';
 };
 
+export type Appointment = {
+  id: string;
+  householdId: string;
+  memberId: string;
+  doctorName: string;
+  specialty: string;
+  date: string; // ISO string
+  time: string;
+  location: string;
+  notes?: string;
+  status: 'Scheduled' | 'Completed' | 'Cancelled';
+};
+
 export type AppUser = {
   uid?: string;
   name: string;
@@ -79,10 +92,12 @@ export type AppState = {
   medicines: Medicine[];
   reminderLogs: ReminderLog[];
   caregivers: Caregiver[];
+  appointments: Appointment[];
 };
 
 export type MedicineInput = Omit<Medicine, 'id' | 'image'> & { image?: string };
 export type MemberInput = Omit<FamilyMember, 'id' | 'image'> & { image?: string };
+export type AppointmentInput = Omit<Appointment, 'id' | 'status'> & { status?: Appointment['status'] };
 
 export type HouseholdRole = 'owner' | 'admin' | 'member' | 'caregiver';
 
@@ -110,6 +125,7 @@ export type Household = {
   id: string;
   name: string;
   ownerUid: string;
+  inviteCode?: string;
   members: HouseholdMember[];
   memberProfileIds?: string[];
   createdAt?: string;

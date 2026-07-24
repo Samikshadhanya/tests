@@ -1,12 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { AlertTriangle, Bell, Calendar, Copy, Package } from 'lucide-react';
+import { AlertTriangle, Bell, Calendar, Copy, Package, ShieldAlert } from 'lucide-react';
 import UpcomingEvents from '@/components/upcoming-events';
 import { useAppStore } from '@/lib/app-store';
 
 export default function DashboardPage() {
-  const { todayReminders, lowStockMedicines, expiringMedicines, duplicateMedicines } = useAppStore();
+  const { todayReminders, lowStockMedicines, expiringMedicines, duplicateMedicines, medicines, getMember } = useAppStore();
+
+  // Calculate escalations: reminders that are "upcoming" and > 30 minutes past their time
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const escalatedReminders = todayReminders.filter(reminder => {
+    if (reminder.status !== 'upcoming') return false;
+    const [hours, minutes] = reminder.time.split(':').map(Number);
+    const reminderMinutes = hours * 60 + minutes;
+    return (currentMinutes - reminderMinutes) > 30;
+  });
 
   const cards = [
     { label: "Today's pill reminders", value: todayReminders.length, detail: 'Mark doses taken or missed', icon: Bell, href: '/reminders', tone: 'blue' },
@@ -49,6 +60,31 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
           <div className="space-y-5 lg:col-span-2">
+            
+            {escalatedReminders.length > 0 && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 md:p-6 shadow-sm">
+                <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-red-900 md:text-xl">
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                  Caregiver Escalations
+                </h2>
+                <div className="space-y-3">
+                  {escalatedReminders.map(reminder => {
+                    const member = getMember(reminder.memberId);
+                    const medicine = medicines.find(m => m.id === reminder.medicineId);
+                    return (
+                      <div key={reminder.id} className="flex flex-col gap-2 bg-white rounded border border-red-100 p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="font-semibold text-slate-900">{member?.name} missed {medicine?.name}</p>
+                          <p className="text-sm text-slate-600">Scheduled for {reminder.time} - Over 30 mins late!</p>
+                        </div>
+                        <span className="text-xs font-medium text-white bg-red-600 px-2 py-1 rounded">Caregivers Notified</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="rounded-lg border border-slate-200 bg-white p-4 md:p-6">
               <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900 md:text-xl">
                 <Package className="h-5 w-5 text-teal-600" />
@@ -56,21 +92,39 @@ export default function DashboardPage() {
               </h2>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Link href="/inventory" className="flex min-h-16 items-center gap-3 rounded-lg border border-slate-200 p-3 transition hover:bg-slate-50 active:scale-[0.99]">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-teal-50 text-teal-600">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal-50 text-teal-600">
                     <Package className="h-5 w-5" />
                   </div>
-                  <div>
-                    <p className="font-semibold text-slate-900">Manage Inventory</p>
-                    <p className="text-xs text-slate-500">Add or edit medicines</p>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-900 truncate">Manage Inventory</p>
+                    <p className="text-xs text-slate-500 truncate">Add or edit medicines</p>
                   </div>
                 </Link>
                 <Link href="/family-profiles" className="flex min-h-16 items-center gap-3 rounded-lg border border-slate-200 p-3 transition hover:bg-slate-50 active:scale-[0.99]">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
                     <Bell className="h-5 w-5" />
                   </div>
-                  <div>
-                    <p className="font-semibold text-slate-900">Family Members</p>
-                    <p className="text-xs text-slate-500">Update profiles</p>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-900 truncate">Family Members</p>
+                    <p className="text-xs text-slate-500 truncate">Update profiles</p>
+                  </div>
+                </Link>
+                <Link href="/appointments" className="flex min-h-16 items-center gap-3 rounded-lg border border-slate-200 p-3 transition hover:bg-slate-50 active:scale-[0.99]">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+                    <Calendar className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-900 truncate">Appointments</p>
+                    <p className="text-xs text-slate-500 truncate">Doctor visits</p>
+                  </div>
+                </Link>
+                <Link href="/emergency" className="flex min-h-16 items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 transition hover:bg-red-100 active:scale-[0.99]">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-700">
+                    <ShieldAlert className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-red-900 truncate">Emergency SOS</p>
+                    <p className="text-xs text-red-700 truncate">Call & Hospitals</p>
                   </div>
                 </Link>
               </div>

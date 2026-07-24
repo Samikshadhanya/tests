@@ -10,6 +10,7 @@ export default function RemindersPage() {
   const { todayReminders, medicines, members, getMember, markDose, deleteReminder, addReminder, expiringMedicines, lowStockMedicines } = useAppStore();
   const [medicineId, setMedicineId] = useState(medicines[0]?.id ?? '');
   const [time, setTime] = useState('08:00');
+  const [selectedProfileId, setSelectedProfileId] = useState('all');
 
   useEffect(() => {
     if (!medicineId && medicines[0]?.id) {
@@ -30,16 +31,63 @@ export default function RemindersPage() {
     });
   };
 
+  const filteredReminders = selectedProfileId === 'all' 
+    ? todayReminders 
+    : todayReminders.filter((r) => r.memberId === selectedProfileId);
+
+  const escalatedReminders = todayReminders.filter((r) => {
+    if (r.status === 'taken') return false;
+    const [h, m] = r.time.split(':').map(Number);
+    const reminderTime = new Date();
+    reminderTime.setHours(h, m, 0, 0);
+    const thirtyMinsAgo = new Date();
+    thirtyMinsAgo.setMinutes(thirtyMinsAgo.getMinutes() - 30);
+    return r.status === 'missed' || reminderTime < thirtyMinsAgo;
+  });
+
   return (
     <>
       <div className="page-panel space-y-5 p-3 sm:p-4 md:p-6">
-        <div className="flex items-center gap-4">
-
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold leading-tight text-slate-900 md:text-3xl">Reminders</h1>
             <p className="mt-1 text-sm text-slate-600 md:text-base">Track pill reminders.</p>
           </div>
+          <select
+            value={selectedProfileId}
+            onChange={(e) => setSelectedProfileId(e.target.value)}
+            className="min-h-11 w-full sm:w-64 rounded-lg border border-slate-300 bg-white px-3 focus:outline-none focus:ring-2 focus:ring-teal-600"
+          >
+            <option value="all">All Members</option>
+            {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
         </div>
+
+        {escalatedReminders.length > 0 && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 mb-5 shadow-sm">
+            <h2 className="flex items-center gap-2 font-bold text-red-800 text-lg mb-3">
+              <AlertTriangle className="w-5 h-5" />
+              Caregiver Escalation Alerts
+            </h2>
+            <div className="space-y-3">
+              {escalatedReminders.map(reminder => {
+                const medicine = medicines.find(m => m.id === reminder.medicineId);
+                const member = getMember(reminder.memberId);
+                return (
+                  <div key={`alert-${reminder.id}`} className="flex items-center justify-between bg-white p-3 rounded-lg border border-red-100">
+                    <div>
+                      <p className="font-semibold text-red-900">{member?.name} missed a dose!</p>
+                      <p className="text-sm text-red-700">{medicine?.name} was scheduled for {reminder.time}</p>
+                    </div>
+                    <Button onClick={() => markDose(reminder.id, 'taken')} size="sm" className="bg-red-600 hover:bg-red-700">
+                      Acknowledge
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
           <div className="overflow-hidden rounded-lg border border-slate-200 bg-white lg:col-span-2">
@@ -47,10 +95,10 @@ export default function RemindersPage() {
               <h2 className="font-bold text-slate-900">Today&apos;s dose schedule</h2>
             </div>
             <div className="divide-y divide-slate-200">
-              {todayReminders.length === 0 && (
-                <div className="p-8 text-center text-slate-600">No reminders yet. Add one from the panel.</div>
+              {filteredReminders.length === 0 && (
+                <div className="p-8 text-center text-slate-600">No reminders for the selected profile.</div>
               )}
-              {todayReminders.map((reminder) => {
+              {filteredReminders.map((reminder) => {
                 const medicine = medicines.find((item) => item.id === reminder.medicineId);
                 const member = getMember(reminder.memberId);
 

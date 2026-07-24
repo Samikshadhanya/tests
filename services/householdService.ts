@@ -46,7 +46,8 @@ export async function fetchUserProfile() {
       image: `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=0f766e&color=fff`,
       healthNotes: [],
       knownAllergies: 'None known',
-      householdId: docRef.id
+      householdId: docRef.id,
+      uid: profile.uid
     });
   }
 
@@ -58,7 +59,7 @@ export async function fetchUserProfile() {
     households = hSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Household));
   }
 
-  let household = households.find(h => h.id === profile.activeHouseholdId) || households[0] || null;
+  const household = households.find(h => h.id === profile.activeHouseholdId) || households[0] || null;
 
   let familyMembers: FamilyMember[] = [];
   if (household) {
@@ -107,4 +108,87 @@ export async function setActiveHousehold(activeHouseholdId: string) {
   
   await updateDoc(doc(db, 'users', uid), { activeHouseholdId });
   return { ok: true as const };
+}
+
+export async function generateInviteCode(householdId: string) {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not authenticated');
+
+  // Verify ownership
+  const householdRef = doc(db, 'households', householdId);
+  const householdDoc = await getDoc(householdRef);
+  if (!householdDoc.exists() || householdDoc.data().ownerUid !== uid) {
+    throw new Error('Not authorized to generate invite code');
+  }
+
+  const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+  
+  // Store the invite code in a separate collection that any signed-in user can read
+  await setDoc(doc(db, 'householdInvites', inviteCode), {
+    householdId,
+    createdBy: uid,
+    createdAt: new Date().toISOString()
+  });
+
+  await updateDoc(householdRef, { inviteCode });
+  return { inviteCode };
+}
+
+export async function joinHousehold(inviteCode: string) {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not authenticated');
+
+  const inviteRef = doc(db, 'householdInvites', inviteCode.toUpperCase());
+  const inviteDoc = await getDoc(inviteRef);
+
+  if (!inviteDoc.exists()) {
+    throw new Error('Invalid or expired invite code');
+  }
+
+  const householdId = inviteDoc.data()?.householdId;
+  if (!householdId) {
+    throw new Error('Invalid invite code data');
+  }
+
+  // Update user's profile to include this household
+  const userRef = doc(db, 'users', uid);
+  const userDoc = await getDoc(userRef);
+  
+  if (userDoc.exists()) {
+    const data = userDoc.data();
+    const householdIds = data.householdIds || [];
+    if (!householdIds.includes(householdId)) {
+      await updateDoc(userRef, { 
+        householdIds: [...householdIds, householdId],
+        activeHouseholdId: householdId
+      });
+    }
+  } else {
+    await setDoc(userRef, {
+      uid,
+      householdIds: [householdId],
+      activeHouseholdId: householdId,
+      role: 'member'
+    });
+  }
+
+  // Add the user as a family profile in the new household so they show up in dropdowns
+  const mQ = query(collection(db, 'members'), where('householdId', '==', householdId), where('name', '==', auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'User'));
+  const mSnap = await getDocs(mQ);
+  
+  if (mSnap.empty) {
+    await addDoc(collection(db, 'members'), {
+      name: auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'User',
+      role: 'Member',
+      age: 'Unspecified',
+      gender: 'Unspecified',
+      image: `https://ui-avatars.com/api/?name=${encodeURIComponent(auth.currentUser?.displayName || 'User')}&background=0f766e&color=fff`,
+      healthNotes: [],
+      knownAllergies: 'None known',
+      householdId: householdId,
+      uid: auth.currentUser?.uid
+    });
+  }
+
+  return { householdId };
 }

@@ -7,6 +7,8 @@ export default function ReportsPage() {
   const { medicines, members, todayReminders, lowStockMedicines, expiringMedicines } = useAppStore();
   const taken = todayReminders.filter((item) => item.status === 'taken').length;
   const adherence = todayReminders.length ? Math.round((taken / todayReminders.length) * 100) : 0;
+  
+  const attentionMedicines = Array.from(new Map([...lowStockMedicines, ...expiringMedicines].map(m => [m.id, m])).values());
 
   return (
     <>
@@ -23,7 +25,7 @@ export default function ReportsPage() {
           <ReportCard label="Family members" value={members.length} />
           <ReportCard label="Medicines tracked" value={medicines.length} />
           <ReportCard label="Dose adherence" value={`${adherence}%`} />
-          <ReportCard label="Needs attention" value={lowStockMedicines.length + expiringMedicines.length} />
+          <ReportCard label="Needs attention" value={attentionMedicines.length} />
         </div>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -50,7 +52,7 @@ export default function ReportsPage() {
           <div className="bg-white border border-slate-200 rounded-lg p-5">
             <h2 className="font-bold text-slate-900 mb-4">Attention list</h2>
             <div className="space-y-3">
-              {[...lowStockMedicines, ...expiringMedicines].map((medicine) => (
+              {attentionMedicines.map((medicine) => (
                 <div key={`${medicine.id}-report`} className="flex flex-col gap-2 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="font-medium text-slate-900">{medicine.name}</p>

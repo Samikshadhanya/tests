@@ -17,6 +17,7 @@ export const initialState: AppState = {
   medicines: [],
   reminderLogs: [],
   caregivers: [],
+  appointments: [],
 };
 
 const avatarFor = (name: string, background = '0f766e') =>
@@ -113,5 +114,6 @@ export function createDemoHouseholdState(host: {
     medicines,
     reminderLogs,
     caregivers,
+    appointments: [],
   };
 }

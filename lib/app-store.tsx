@@ -11,16 +11,17 @@ import {
   signInWithCredential,
   GoogleAuthProvider,
 } from 'firebase/auth';
-import { initialState, medicineImage } from '@/lib/initial-data';
-import type { AppState, AppUser, Caregiver, FamilyMember, Household, Medicine, MedicineInput, MemberInput, ReminderInput, ReminderLog } from '@/lib/types';
+import { initialState, medicineImage, createDemoHouseholdState } from '@/lib/initial-data';
+import type { AppState, AppUser, Caregiver, FamilyMember, Household, Medicine, MedicineInput, MemberInput, ReminderInput, ReminderLog, Appointment, AppointmentInput } from '@/lib/types';
 import { auth, db, googleProvider } from '@/lib/firebase';
 import { daysUntil } from '@/lib/date-utils';
-import { createHousehold, fetchUserProfile, setActiveHousehold } from '@/services/householdService';
+import { createHousehold, fetchUserProfile, setActiveHousehold, generateInviteCode as generateInviteCodeRequest, joinHousehold as joinHouseholdRequest } from '@/services/householdService';
 import { createMedicine, deleteMedicine as deleteMedicineRequest, fetchMedicines, updateMedicine as updateMedicineRequest } from '@/services/medicineService';
 import { createReminder, deleteReminder as deleteReminderRequest, fetchReminders, updateReminder as updateReminderRequest } from '@/services/reminderService';
 import { createCaregiver, deleteCaregiver as deleteCaregiverRequest, fetchCaregivers } from '@/services/caregiverService';
+import { createAppointment, deleteAppointment as deleteAppointmentRequest, fetchAppointments, updateAppointment as updateAppointmentRequest } from '@/services/appointmentService';
 
-export type { AppState, AppUser, Caregiver, FamilyMember, Medicine, MedicineInput, MemberInput, ReminderInput, ReminderLog };
+export type { AppState, AppUser, Caregiver, FamilyMember, Medicine, MedicineInput, MemberInput, ReminderInput, ReminderLog, Appointment, AppointmentInput };
 
 type AppStore = AppState & {
   loading: boolean;
@@ -38,9 +39,14 @@ type AppStore = AppState & {
   markDose: (id: string, status: ReminderLog['status']) => Promise<void>;
   addCaregiver: (caregiver: Omit<Caregiver, 'id' | 'status'>) => Promise<void>;
   removeCaregiver: (id: string) => Promise<void>;
+  addAppointment: (appointment: Omit<Appointment, 'id' | 'status' | 'householdId'> & { status?: Appointment['status'] }) => Promise<void>;
+  updateAppointment: (id: string, appointment: Partial<Appointment>) => Promise<void>;
+  deleteAppointment: (id: string) => Promise<void>;
   getMember: (id: string) => FamilyMember | undefined;
   switchHousehold: (household: string) => Promise<void>;
   addHousehold: (household: string) => Promise<void>;
+  generateInviteCode: () => Promise<string>;
+  joinHousehold: (inviteCode: string) => Promise<void>;
   lowStockMedicines: Medicine[];
   expiringMedicines: Medicine[];
   duplicateMedicines: Medicine[];
@@ -76,14 +82,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>(initialState);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const storeRef = React.useRef<AppStore | null>(null);
 
   const loadHouseholdData = useCallback(async (householdId?: string) => {
     if (!householdId || !auth.currentUser) return;
 
-    const [medicineResult, reminderResult, caregiverResult] = await Promise.all([
+    const [medicineResult, reminderResult, caregiverResult, appointmentResult] = await Promise.all([
       fetchMedicines(householdId),
       fetchReminders({ householdId }),
       fetchCaregivers(householdId),
+      fetchAppointments(householdId),
     ]);
 
     setState((current) => ({
@@ -91,6 +99,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       medicines: medicineResult.medicines,
       reminderLogs: reminderResult.reminders,
       caregivers: caregiverResult.caregivers,
+      appointments: appointmentResult.appointments,
     }));
   }, []);
 
@@ -118,6 +127,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
 
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setError(null);
 
@@ -128,7 +142,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       try {
         setLoading(true);
-        await loadAuthenticatedUser();
+        
+        // Add a 10 second timeout in case Firestore hangs (e.g. database not created)
+        const timeout = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Timeout loading user data. Please check your Firebase Firestore setup or network connection.')), 10000);
+        });
+        
+        await Promise.race([loadAuthenticatedUser(), timeout]);
       } catch (loadError) {
         const message = loadError instanceof Error ? loadError.message : 'Failed to load your MedHome data.';
         setError(message);
@@ -141,6 +161,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       unsubscribe();
     };
   }, [loadAuthenticatedUser]);
+
+  useEffect(() => {
+    import('@/lib/notifications').then(({ requestNotificationPermissions }) => {
+      requestNotificationPermissions();
+    });
+  }, []);
+
+  useEffect(() => {
+    if (loading || !state.user.uid || !state.members.length) return;
+    import('@/lib/notifications').then(({ syncLocalNotifications }) => {
+      syncLocalNotifications(state.user.uid, state.members, state.reminderLogs, state.medicines);
+    });
+  }, [loading, state.user.uid, state.members, state.reminderLogs, state.medicines]);
 
   const refreshHouseholdData = useCallback(async () => {
     if (!state.user.householdId || localProviders.has(state.user.authProvider)) return;
@@ -212,34 +245,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         const fallbackName = provider === 'guest' ? name || 'Guest User' : email?.split('@')[0] || 'Demo User';
-        const memberId = newLocalId('member');
-        setState({
-          ...initialState,
-          user: {
+        
+        if (provider === 'guest') {
+          setState(createDemoHouseholdState({
             uid: newLocalId('local-user'),
             name: fallbackName,
-            email: email || '',
-            role: role || 'Host',
-            authProvider: provider,
-            household: provider === 'guest' ? 'Guest Household' : 'Local Household',
-            householdId: newLocalId('local-household'),
-            households: [provider === 'guest' ? 'Guest Household' : 'Local Household'],
-            householdIds: [],
-            calendarConnected: false,
-          },
-          members: provider === 'guest'
-            ? [{
-                id: memberId,
-                name: fallbackName,
-                role: role || 'Family Member',
-                age: age || 'Unspecified',
-                gender: 'Unspecified',
-                image: `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=0f766e&color=fff`,
-                healthNotes: [],
-                knownAllergies: 'None known',
-              }]
-            : [],
-        });
+            email: email || 'guest@example.com',
+            age: age,
+            role: role || 'Host'
+          }));
+        } else {
+          setState({
+            ...initialState,
+            user: {
+              uid: newLocalId('local-user'),
+              name: fallbackName,
+              email: email || '',
+              role: role || 'Host',
+              authProvider: provider,
+              household: 'Local Household',
+              householdId: newLocalId('local-household'),
+              households: ['Local Household'],
+              householdIds: [],
+              calendarConnected: false,
+            },
+            members: [],
+          });
+        }
       },
       signOut: async () => {
         setError(null);
@@ -264,6 +296,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           medicines: [],
           reminderLogs: [],
           caregivers: [],
+          appointments: [],
         }));
         if (nextHouseholdId && !isLocalSession) {
           await setActiveHousehold(nextHouseholdId);
@@ -293,7 +326,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           members: bundle.familyMembers,
           medicines: [],
           reminderLogs: [],
+          appointments: [],
         }));
+      },
+      generateInviteCode: async () => {
+        if (!householdId) throw new Error('No active household selected.');
+        const result = await generateInviteCodeRequest(householdId);
+        return result.inviteCode;
+      },
+      joinHousehold: async (inviteCode: string) => {
+        const result = await joinHouseholdRequest(inviteCode);
+        const bundle = await fetchUserProfile();
+        const appUser = userFromProfile(bundle.profile, bundle.household, bundle.households);
+        setState((current) => ({
+          ...current,
+          user: appUser,
+          members: bundle.familyMembers,
+          medicines: [],
+          reminderLogs: [],
+          appointments: [],
+        }));
+        await loadHouseholdData(result.householdId);
       },
       addMedicine: async (medicine) => {
         const reminderTimes = medicine.reminderTimes.filter(Boolean);
@@ -446,9 +499,67 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await deleteCaregiverRequest(id);
         setState((current) => ({ ...current, caregivers: current.caregivers.filter((item) => item.id !== id) }));
       },
+      addAppointment: async (appointment) => {
+        if (isLocalSession) {
+          setState((current) => ({ ...current, appointments: [...current.appointments, { ...appointment, id: newLocalId('appointment'), householdId, status: appointment.status || 'Scheduled' } as Appointment] }));
+          return;
+        }
+
+        if (!householdId) throw new Error('No active household selected.');
+        const result = await createAppointment({ ...appointment, householdId } as any);
+        setState((current) => ({ ...current, appointments: [...current.appointments, result.appointment] }));
+      },
+      updateAppointment: async (id, appointment) => {
+        if (isLocalSession) {
+          setState((current) => ({ ...current, appointments: current.appointments.map((item) => item.id === id ? { ...item, ...appointment } : item) }));
+          return;
+        }
+
+        const result = await updateAppointmentRequest(id, appointment);
+        setState((current) => ({ ...current, appointments: current.appointments.map((item) => item.id === id ? { ...item, ...result.appointment } : item) }));
+      },
+      deleteAppointment: async (id) => {
+        if (isLocalSession) {
+          setState((current) => ({ ...current, appointments: current.appointments.filter((item) => item.id !== id) }));
+          return;
+        }
+
+        await deleteAppointmentRequest(id);
+        setState((current) => ({ ...current, appointments: current.appointments.filter((item) => item.id !== id) }));
+      },
       getMember: (id) => state.members.find((member) => member.id === id),
     };
   }, [error, loadAuthenticatedUser, loadHouseholdData, loading, refreshHouseholdData, state]);
+
+  storeRef.current = value;
+
+  useEffect(() => {
+    const setupListener = async () => {
+      const { Capacitor } = await import('@capacitor/core');
+      if (!Capacitor.isNativePlatform()) return;
+      
+      const { LocalNotifications } = await import('@capacitor/local-notifications');
+      LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
+        if (notificationAction.actionId === 'take') {
+          const reminderId = notificationAction.notification.extra?.reminderId;
+          if (reminderId && storeRef.current) {
+            storeRef.current.markDose(reminderId, 'taken');
+          }
+        }
+      });
+    };
+    setupListener();
+
+    return () => {
+      import('@capacitor/core').then(({ Capacitor }) => {
+        if (Capacitor.isNativePlatform()) {
+          import('@capacitor/local-notifications').then(({ LocalNotifications }) => {
+            LocalNotifications.removeAllListeners();
+          });
+        }
+      });
+    };
+  }, []);
 
   useEffect(() => {
     if (!state.user.householdId || localProviders.has(state.user.authProvider)) return;
