@@ -268,13 +268,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             try {
               await signInWithPopup(auth, googleProvider);
             } catch (popupErr: any) {
-              console.warn('Popup auth error/blocked, falling back to redirect:', popupErr?.code || popupErr?.message);
+              if (popupErr?.code === 'auth/popup-blocked') {
+                await signInWithRedirect(auth, googleProvider);
+                return;
+              }
               if (popupErr?.code === 'auth/unauthorized-domain') {
                 const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'your Vercel domain';
                 throw new Error(`Domain not authorized: Please add "${currentDomain}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`);
               }
-              await signInWithRedirect(auth, googleProvider);
-              return;
+              throw popupErr;
             }
           }
           await loadAuthenticatedUser(auth.currentUser?.uid);
