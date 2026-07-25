@@ -120,19 +120,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const loadAuthenticatedUser = useCallback(async (expectedUid = auth.currentUser?.uid) => {
     if (!expectedUid) return;
 
-    const bundle = await fetchUserProfile();
+    try {
+      const bundle = await fetchUserProfile();
 
-    if (auth.currentUser?.uid !== expectedUid) return;
+      if (auth.currentUser?.uid !== expectedUid) return;
 
-    const appUser = userFromProfile(bundle.profile, bundle.household, bundle.households, bundle.familyMembers);
+      const appUser = userFromProfile(bundle.profile, bundle.household, bundle.households, bundle.familyMembers);
 
-    setState((current) => ({
-      ...current,
-      user: appUser,
-      members: bundle.familyMembers,
-    }));
+      setState((current) => ({
+        ...current,
+        user: appUser,
+        members: bundle.familyMembers,
+      }));
 
-    await loadHouseholdData(appUser.householdId);
+      await loadHouseholdData(appUser.householdId);
+    } catch (err) {
+      console.warn('Failed to load profile from Firestore, creating fallback state:', err);
+      if (auth.currentUser && auth.currentUser.uid === expectedUid) {
+        const fallbackUser: AppUser = {
+          uid: auth.currentUser.uid,
+          name: auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'User',
+          email: auth.currentUser.email || '',
+          photoURL: auth.currentUser.photoURL || undefined,
+          role: 'Host',
+          authProvider: 'google',
+          household: 'My Family',
+          householdId: 'default-household',
+          calendarConnected: false,
+          accessLevel: 'Leader',
+        };
+        setState((current) => ({
+          ...current,
+          user: fallbackUser,
+        }));
+      }
+    }
   }, [loadHouseholdData]);
 
   useEffect(() => {
