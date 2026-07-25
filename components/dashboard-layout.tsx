@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Sidebar from './sidebar';
 import Header from './header';
 import ProtectedRoute from './protected-route';
+import AIChatDrawer from './ai-chat-drawer';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -28,6 +29,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             {children}
           </main>
         </div>
+
+        <AIChatDrawer />
       </div>
     </ProtectedRoute>
   );

@@ -3,33 +3,56 @@
 import { Phone, MapPin, AlertCircle, ShieldAlert, Plus, Edit2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
+import { useAppStore } from '@/lib/app-store';
 
 export default function EmergencyPage() {
-  const [emergencyContact, setEmergencyContact] = useState<{name: string, phone: string} | null>(null);
+  const { user, updateEmergencyContact } = useAppStore();
   const [isEditingContact, setIsEditingContact] = useState(false);
   const [contactForm, setContactForm] = useState({ name: '', phone: '' });
+  const [isSaving, setIsSaving] = useState(false);
+
+  const emergencyContact = user.emergencyContact || (() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('emergencyContact');
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) { return null; }
+      }
+    }
+    return null;
+  })();
 
   useEffect(() => {
-    const saved = localStorage.getItem('emergencyContact');
-    if (saved) {
-      setEmergencyContact(JSON.parse(saved));
-    } else {
+    if (!emergencyContact && !isEditingContact) {
       setIsEditingContact(true);
+    } else if (emergencyContact) {
+      setContactForm(emergencyContact);
     }
-  }, []);
+  }, [emergencyContact]);
 
-  const saveContact = () => {
+  const saveContact = async () => {
     if (!contactForm.name || !contactForm.phone) return;
-    localStorage.setItem('emergencyContact', JSON.stringify(contactForm));
-    setEmergencyContact(contactForm);
-    setIsEditingContact(false);
+    setIsSaving(true);
+    try {
+      await updateEmergencyContact(contactForm);
+      setIsEditingContact(false);
+    } catch (err) {
+      console.error('Failed to sync emergency contact:', err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const removeContact = () => {
-    localStorage.removeItem('emergencyContact');
-    setEmergencyContact(null);
-    setContactForm({ name: '', phone: '' });
-    setIsEditingContact(true);
+  const removeContact = async () => {
+    setIsSaving(true);
+    try {
+      await updateEmergencyContact(null);
+      setContactForm({ name: '', phone: '' });
+      setIsEditingContact(true);
+    } catch (err) {
+      console.error('Failed to remove emergency contact:', err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const callEmergency = (number: string) => {
@@ -37,7 +60,6 @@ export default function EmergencyPage() {
   };
 
   const openHospitalFinder = () => {
-    // Open Google Maps search for nearby hospitals
     window.open('https://www.google.com/maps/search/hospitals+near+me', '_blank');
   };
 
@@ -131,7 +153,9 @@ export default function EmergencyPage() {
               {emergencyContact && (
                 <Button variant="outline" onClick={() => { setContactForm(emergencyContact); setIsEditingContact(false); }}>Cancel</Button>
               )}
-              <Button onClick={saveContact} className="bg-teal-600 hover:bg-teal-700" disabled={!contactForm.name || !contactForm.phone}>Save Contact</Button>
+              <Button onClick={saveContact} className="bg-teal-600 hover:bg-teal-700" disabled={!contactForm.name || !contactForm.phone || isSaving}>
+                {isSaving ? 'Saving...' : 'Save Contact'}
+              </Button>
             </div>
           </div>
         )}
@@ -146,7 +170,7 @@ export default function EmergencyPage() {
               <Button variant="outline" size="sm" onClick={() => { setContactForm(emergencyContact); setIsEditingContact(true); }} className="text-teal-700 border-teal-200 hover:bg-teal-100 flex-1 sm:flex-none">
                 <Edit2 className="w-4 h-4" />
               </Button>
-              <Button variant="outline" size="sm" onClick={removeContact} className="text-red-600 border-red-200 hover:bg-red-50 flex-1 sm:flex-none">
+              <Button variant="outline" size="sm" onClick={removeContact} disabled={isSaving} className="text-red-600 border-red-200 hover:bg-red-50 flex-1 sm:flex-none">
                 <Trash2 className="w-4 h-4" />
               </Button>
               <Button size="sm" onClick={() => callEmergency(emergencyContact.phone)} className="bg-teal-600 hover:bg-teal-700 text-white ml-2 flex-1 sm:flex-none">

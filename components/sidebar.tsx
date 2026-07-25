@@ -13,6 +13,7 @@ import {
   Settings,
   ShieldAlert,
   ShoppingCart,
+  Sparkles,
   X,
   Users,
 } from 'lucide-react';
@@ -30,6 +31,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const reminderAlertCount = todayReminders.length + expiringMedicines.length;
   const menuItems = [
     { icon: LayoutGrid, label: 'Dashboard', href: '/dashboard' },
+    { icon: Sparkles, label: 'AI Assistant', href: '/ai-assistant' },
     ...(!isElderly ? [
       { icon: Users, label: 'Family Profiles', href: '/family-profiles' },
       { icon: Calendar, label: 'Appointments', href: '/appointments' },

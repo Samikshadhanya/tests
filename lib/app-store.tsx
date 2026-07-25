@@ -54,6 +54,7 @@ type AppStore = AppState & {
   todayReminders: ReminderLog[];
   toggleElderMode: (enabled: boolean) => Promise<void>;
   toggleCaregiverOptIn: (memberId: string) => Promise<void>;
+  updateEmergencyContact: (contact: { name: string; phone: string } | null) => Promise<void>;
 };
 
 const AppContext = createContext<AppStore | null>(null);
@@ -85,6 +86,7 @@ const userFromProfile = (
   elderMode: isElderly ? true : profile.elderMode,
   caregiverForIds: profile.caregiverForIds,
   accessLevel: myMember?.accessLevel || 'Leader', // Default creator/host to leader
+  emergencyContact: profile.emergencyContact,
 };
 };
 
@@ -250,7 +252,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               throw new Error('Google native sign-in failed: No ID token returned.');
             }
           } else {
-            await signInWithPopup(auth, googleProvider);
+            try {
+              await signInWithPopup(auth, googleProvider);
+            } catch (popupErr: any) {
+              if (popupErr.code === 'auth/unauthorized-domain') {
+                const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'your Vercel domain';
+                throw new Error(`Domain not authorized: Please add "${currentDomain}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`);
+              } else if (popupErr.code === 'auth/popup-blocked') {
+                const { signInWithRedirect } = await import('firebase/auth');
+                await signInWithRedirect(auth, googleProvider);
+                return;
+              }
+              throw popupErr;
+            }
           }
           await loadAuthenticatedUser(auth.currentUser?.uid);
           return;
@@ -634,6 +648,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         await updateDoc(doc(db, 'users', state.user.uid!), { caregiverForIds: newIds });
         setState((current) => ({ ...current, user: { ...current.user, caregiverForIds: newIds } }));
+      },
+      updateEmergencyContact: async (contact: { name: string; phone: string } | null) => {
+        if (contact) {
+          localStorage.setItem('emergencyContact', JSON.stringify(contact));
+        } else {
+          localStorage.removeItem('emergencyContact');
+        }
+
+        if (state.user.uid && !isLocalSession) {
+          await updateDoc(doc(db, 'users', state.user.uid), { emergencyContact: contact });
+        }
+
+        setState((current) => ({
+          ...current,
+          user: { ...current.user, emergencyContact: contact || undefined }
+        }));
       },
     };
   }, [error, loadAuthenticatedUser, loadHouseholdData, loading, refreshHouseholdData, state]);

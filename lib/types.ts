@@ -89,6 +89,7 @@ export type AppUser = {
   elderMode?: boolean;
   caregiverForIds?: string[];
   accessLevel?: 'Leader' | 'Standard' | 'Elderly';
+  emergencyContact?: { name: string; phone: string };
 };
 
 export type AppState = {
@@ -118,6 +119,7 @@ export type UserProfile = {
   calendarConnected: boolean;
   elderMode?: boolean;
   caregiverForIds?: string[];
+  emergencyContact?: { name: string; phone: string };
   createdAt?: string;
   updatedAt?: string;
 };
