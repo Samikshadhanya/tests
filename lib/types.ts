@@ -8,6 +8,8 @@ export type FamilyMember = {
   image: string;
   healthNotes: string[];
   knownAllergies: string;
+  uid?: string;
+  accessLevel?: 'Leader' | 'Standard' | 'Elderly';
 };
 
 export type Medicine = {
@@ -84,6 +86,9 @@ export type AppUser = {
   households?: string[];
   householdIds?: string[];
   calendarConnected: boolean;
+  elderMode?: boolean;
+  caregiverForIds?: string[];
+  accessLevel?: 'Leader' | 'Standard' | 'Elderly';
 };
 
 export type AppState = {
@@ -111,6 +116,8 @@ export type UserProfile = {
   activeHouseholdId?: string;
   householdIds: string[];
   calendarConnected: boolean;
+  elderMode?: boolean;
+  caregiverForIds?: string[];
   createdAt?: string;
   updatedAt?: string;
 };

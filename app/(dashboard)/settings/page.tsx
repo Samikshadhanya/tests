@@ -1,18 +1,62 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronLeft, ShieldCheck, Users, Link as LinkIcon, KeyRound } from 'lucide-react';
+import { ChevronLeft, ShieldCheck, Users, Link as LinkIcon, KeyRound, Bell } from 'lucide-react';
 import { useAppStore } from '@/lib/app-store';
 import { Button } from '@/components/ui/button';
+import { Capacitor } from '@capacitor/core';
+import { LocalNotifications } from '@capacitor/local-notifications';
+// Replaced Switch with a custom segmented control
 
 export default function SettingsPage() {
-  const { user, generateInviteCode, joinHousehold } = useAppStore();
+  const { user, generateInviteCode, joinHousehold, toggleElderMode } = useAppStore();
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [loadingInvite, setLoadingInvite] = useState(false);
   const [loadingJoin, setLoadingJoin] = useState(false);
-  const [joinError, setJoinError] = useState('');
-  const [joinSuccess, setJoinSuccess] = useState('');
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [joinSuccess, setJoinSuccess] = useState<string | null>(null);
+
+  const requestNotificationPermission = async () => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        let permStatus = await LocalNotifications.checkPermissions();
+        if (permStatus.display !== 'granted') {
+          permStatus = await LocalNotifications.requestPermissions();
+        }
+        if (permStatus.display === 'granted') {
+          await LocalNotifications.schedule({
+            notifications: [
+              {
+                title: 'Native Notifications Enabled!',
+                body: 'You will now receive native lockscreen alerts from the MedHome App.',
+                id: 1,
+                schedule: { at: new Date(Date.now() + 1000 * 2) }, // 2 seconds from now
+              }
+            ]
+          });
+        } else {
+          alert('Native notification permission denied.');
+        }
+      } else {
+        if (!('Notification' in window)) {
+          alert('This browser does not support desktop notifications.');
+          return;
+        }
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          new Notification('Web Notifications Enabled!', {
+            body: 'You will now receive alerts for reminders and missed pills on your lockscreen (when installed).',
+            icon: '/icon-192x192.png'
+          });
+        } else {
+          alert('Notification permission was denied.');
+        }
+      }
+    } catch (e: any) {
+      alert('Error scheduling notification: ' + e.message);
+    }
+  };
 
   const handleGenerateInvite = async () => {
     try {
@@ -65,6 +109,44 @@ export default function SettingsPage() {
               <Row label="Role" value={user.role} />
               <Row label="Login provider" value={user.authProvider} />
               <Row label="Active Household" value={user.household} />
+            </div>
+
+            <hr className="border-slate-100 mt-4 mb-4" />
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800">App Interface Mode</h3>
+                <p className="text-xs text-slate-500">Switch between the full app or a simplified view.</p>
+              </div>
+              <div className="flex bg-slate-100 p-1 rounded-lg shrink-0">
+                <button
+                  onClick={() => toggleElderMode(false)}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${!user.elderMode ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  Standard
+                </button>
+                <button
+                  onClick={() => toggleElderMode(true)}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${user.elderMode ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  Elderly
+                </button>
+              </div>
+            </div>
+
+            <hr className="border-slate-100 mt-4 mb-4" />
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-slate-500" />
+                  Push Notifications
+                </h3>
+                <p className="text-xs text-slate-500">Enable lockscreen alerts for pills and missed doses.</p>
+              </div>
+              <Button onClick={requestNotificationPermission} variant="outline" size="sm">
+                Enable Notifications
+              </Button>
             </div>
           </section>
 

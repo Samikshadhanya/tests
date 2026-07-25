@@ -1,10 +1,17 @@
 const isGithubActions = process.env.GITHUB_ACTIONS === 'true';
 const isCapacitorBuild = process.env.CAPACITOR_BUILD === 'true';
+import withPWAInit from '@ducanh2912/next-pwa';
+
+const withPWA = withPWAInit({
+  dest: 'public',
+  disable: process.env.NODE_ENV === 'development',
+});
 
 // Static export is only needed for Capacitor (Android) and GitHub Pages
 const isStaticExport = isGithubActions || isCapacitorBuild;
 
 const nextConfig = {
+  turbopack: {},
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -29,4 +36,4 @@ const nextConfig = {
   basePath: isGithubActions ? '/Medhometest' : '',
 }
 
-export default nextConfig
+export default withPWA(nextConfig);

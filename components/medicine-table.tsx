@@ -12,7 +12,12 @@ interface MedicineTableProps {
 }
 
 export default function MedicineTable({ medicines, showDelete = false }: MedicineTableProps) {
-  const { getMember, deleteMedicine, updateMedicine } = useAppStore();
+  const { user, members, getMember, deleteMedicine, updateMedicine } = useAppStore();
+  const hasUidLinkedMember = members.some(m => m.uid === user.uid);
+  const myMember = members.find(m =>
+    m.uid === user.uid ||
+    (!hasUidLinkedMember && m.name.toLowerCase() === user.name.toLowerCase())
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [quantityDraft, setQuantityDraft] = useState('');
 
@@ -37,6 +42,8 @@ export default function MedicineTable({ medicines, showDelete = false }: Medicin
           const member = getMember(medicine.assignedToId);
           const daysLeft = daysUntil(medicine.expiryDate);
           const urgent = daysLeft <= 30 || medicine.quantity <= medicine.lowStockAt;
+          const isMine = medicine.assignedToId === myMember?.id;
+          const canModify = user.accessLevel !== 'Standard' || isMine;
 
           return (
             <article key={medicine.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -87,12 +94,14 @@ export default function MedicineTable({ medicines, showDelete = false }: Medicin
                     </Button>
                   </>
                 ) : (
-                  <Button onClick={() => startEdit(medicine)} variant="outline" size="sm" aria-label={`Edit ${medicine.name}`}>
-                    <Pencil className="h-4 w-4" />
-                    Edit
-                  </Button>
+                  canModify && (
+                    <Button onClick={() => startEdit(medicine)} variant="outline" size="sm" aria-label={`Edit ${medicine.name}`}>
+                      <Pencil className="h-4 w-4" />
+                      Edit
+                    </Button>
+                  )
                 )}
-                {showDelete && (
+                {showDelete && canModify && (
                   <Button
                     onClick={() => deleteMedicine(medicine.id)}
                     variant="ghost"
@@ -126,6 +135,8 @@ export default function MedicineTable({ medicines, showDelete = false }: Medicin
               const member = getMember(medicine.assignedToId);
               const daysLeft = daysUntil(medicine.expiryDate);
               const urgent = daysLeft <= 30 || medicine.quantity <= medicine.lowStockAt;
+              const isMine = medicine.assignedToId === myMember?.id;
+              const canModify = user.accessLevel !== 'Standard' || isMine;
 
               return (
                 <tr key={medicine.id} className="border-b border-slate-200 hover:bg-slate-50 transition">
@@ -173,11 +184,13 @@ export default function MedicineTable({ medicines, showDelete = false }: Medicin
                           </Button>
                         </>
                       ) : (
-                        <Button onClick={() => startEdit(medicine)} variant="ghost" size="icon-sm" aria-label={`Edit ${medicine.name}`}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
+                        canModify && (
+                          <Button onClick={() => startEdit(medicine)} variant="ghost" size="icon-sm" aria-label={`Edit ${medicine.name}`}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        )
                       )}
-                      {showDelete && (
+                      {showDelete && canModify && (
                         <Button
                           onClick={() => deleteMedicine(medicine.id)}
                           variant="ghost"

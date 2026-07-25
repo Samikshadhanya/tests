@@ -7,7 +7,11 @@ import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/lib/app-store';
 
 export default function RemindersPage() {
-  const { todayReminders, medicines, members, getMember, markDose, deleteReminder, addReminder, expiringMedicines, lowStockMedicines } = useAppStore();
+  const { todayReminders, medicines, members, user, getMember, markDose, deleteReminder, addReminder, expiringMedicines, lowStockMedicines } = useAppStore();
+  // Find the logged-in user's own member profile
+  const myMember = members.find(m => m.uid === user.uid);
+  const isElderly = user.elderMode || user.accessLevel === 'Elderly';
+  const isLeader = user.accessLevel === 'Leader' || (!user.elderMode && !myMember);
   const [medicineId, setMedicineId] = useState(medicines[0]?.id ?? '');
   const [time, setTime] = useState('08:00');
   const [selectedProfileId, setSelectedProfileId] = useState('all');
@@ -31,9 +35,15 @@ export default function RemindersPage() {
     });
   };
 
-  const filteredReminders = selectedProfileId === 'all' 
-    ? todayReminders 
-    : todayReminders.filter((r) => r.memberId === selectedProfileId);
+  // Elderly and Standard users only see their own reminders; Leaders see all / can filter
+  const isRestricted = isElderly || user.accessLevel === 'Standard';
+  const baseReminders = isRestricted && myMember
+    ? todayReminders.filter(r => r.memberId === myMember.id)
+    : todayReminders;
+
+  const filteredReminders = selectedProfileId === 'all'
+    ? baseReminders
+    : baseReminders.filter((r) => r.memberId === selectedProfileId);
 
   const escalatedReminders = todayReminders.filter((r) => {
     if (r.status === 'taken') return false;
@@ -53,6 +63,7 @@ export default function RemindersPage() {
             <h1 className="text-2xl font-bold leading-tight text-slate-900 md:text-3xl">Reminders</h1>
             <p className="mt-1 text-sm text-slate-600 md:text-base">Track pill reminders.</p>
           </div>
+        {!isRestricted && (
           <select
             value={selectedProfileId}
             onChange={(e) => setSelectedProfileId(e.target.value)}
@@ -61,7 +72,41 @@ export default function RemindersPage() {
             <option value="all">All Members</option>
             {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
+        )}
         </div>
+
+        {/* Leader-only: missed dose alerts across all members */}
+        {isLeader && (
+          (() => {
+            const allMissed = todayReminders.filter(r => r.status === 'missed');
+            if (allMissed.length === 0) return null;
+            return (
+              <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 mb-2 shadow-sm">
+                <h2 className="flex items-center gap-2 font-bold text-orange-800 text-base mb-3">
+                  <AlertTriangle className="w-5 h-5" />
+                  Missed Doses — Household Alert
+                </h2>
+                <div className="space-y-2">
+                  {allMissed.map(reminder => {
+                    const medicine = medicines.find(m => m.id === reminder.medicineId);
+                    const member = getMember(reminder.memberId);
+                    return (
+                      <div key={`leader-missed-${reminder.id}`} className="flex items-center justify-between bg-white p-3 rounded-lg border border-orange-100">
+                        <div>
+                          <p className="font-semibold text-orange-900 text-sm">{member?.name ?? 'Unknown'} missed a dose</p>
+                          <p className="text-xs text-orange-700">{medicine?.name ?? 'Unknown medicine'} — scheduled at {reminder.time}</p>
+                        </div>
+                        <Button onClick={() => markDose(reminder.id, 'taken')} size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-xs">
+                          Acknowledge
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()
+        )}
 
         {escalatedReminders.length > 0 && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 mb-5 shadow-sm">
@@ -89,6 +134,7 @@ export default function RemindersPage() {
           </div>
         )}
 
+
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
           <div className="overflow-hidden rounded-lg border border-slate-200 bg-white lg:col-span-2">
             <div className="px-5 py-4 border-b border-slate-200">
@@ -109,9 +155,9 @@ export default function RemindersPage() {
                         {reminder.time}
                       </div>
                       <div>
-                        <p className="font-semibold text-slate-900">{medicine?.name}</p>
-                        <p className="text-sm text-slate-600">{medicine?.dosage} - {medicine?.mealInstruction}</p>
-                        <p className="text-xs text-slate-500 mt-1">{member?.name} ({member?.role})</p>
+                        <p className="font-semibold text-slate-900">{medicine?.name || 'Unknown Medicine'}</p>
+                        <p className="text-sm text-slate-600">{medicine ? `${medicine.dosage} - ${medicine.mealInstruction}` : '-'}</p>
+                        <p className="text-xs text-slate-500 mt-1">{member ? `${member.name} (${member.role})` : 'Unassigned'}</p>
                         <span className="inline-flex mt-2 px-2 py-1 rounded bg-slate-100 text-slate-700 text-xs capitalize">
                           {reminder.status}
                         </span>

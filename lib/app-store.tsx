@@ -52,6 +52,8 @@ type AppStore = AppState & {
   duplicateMedicines: Medicine[];
   purchaseList: Medicine[];
   todayReminders: ReminderLog[];
+  toggleElderMode: (enabled: boolean) => Promise<void>;
+  toggleCaregiverOptIn: (memberId: string) => Promise<void>;
 };
 
 const AppContext = createContext<AppStore | null>(null);
@@ -64,7 +66,11 @@ const userFromProfile = (
   profile: Awaited<ReturnType<typeof fetchUserProfile>>['profile'],
   household: Household | null,
   households: Household[] = [],
-): AppUser => ({
+  familyMembers: FamilyMember[] = [],
+): AppUser => {
+  const myMember = familyMembers.find(m => m.uid === profile.uid);
+  const isElderly = myMember?.accessLevel === 'Elderly';
+  return {
   uid: profile.uid,
   name: profile.name || profile.email.split('@')[0] || 'User',
   email: profile.email,
@@ -76,7 +82,11 @@ const userFromProfile = (
   households: households.length ? households.map((item) => item.name) : household ? [household.name] : [],
   householdIds: households.length ? households.map((item) => item.id) : profile.householdIds,
   calendarConnected: profile.calendarConnected,
-});
+  elderMode: isElderly ? true : profile.elderMode,
+  caregiverForIds: profile.caregiverForIds,
+  accessLevel: myMember?.accessLevel || 'Leader', // Default creator/host to leader
+};
+};
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>(initialState);
@@ -110,7 +120,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     if (auth.currentUser?.uid !== expectedUid) return;
 
-    const appUser = userFromProfile(bundle.profile, bundle.household, bundle.households);
+    const appUser = userFromProfile(bundle.profile, bundle.household, bundle.households, bundle.familyMembers);
 
     setState((current) => ({
       ...current,
@@ -170,10 +180,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (loading || !state.user.uid || !state.members.length) return;
+    const uid = state.user.uid;
     import('@/lib/notifications').then(({ syncLocalNotifications }) => {
-      syncLocalNotifications(state.user.uid, state.members, state.reminderLogs, state.medicines);
+      syncLocalNotifications(uid, state.members, state.reminderLogs, state.medicines, state.user.caregiverForIds || [], state.appointments);
     });
-  }, [loading, state.user.uid, state.members, state.reminderLogs, state.medicines]);
+  }, [loading, state.user.uid, state.members, state.reminderLogs, state.medicines, state.user.caregiverForIds, state.appointments]);
 
   const refreshHouseholdData = useCallback(async () => {
     if (!state.user.householdId || localProviders.has(state.user.authProvider)) return;
@@ -187,19 +198,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [loadHouseholdData, state.user.authProvider, state.user.householdId]);
 
   const value = useMemo<AppStore>(() => {
-    const lowStockMedicines = state.medicines.filter((medicine) => medicine.quantity <= medicine.lowStockAt);
+    const LOW_STOCK_MIN = 5;
+    const lowStockMedicines = state.medicines.filter((medicine) => medicine.quantity <= Math.max(medicine.lowStockAt, LOW_STOCK_MIN));
     const expiringMedicines = state.medicines.filter((medicine) => daysUntil(medicine.expiryDate) <= 30);
     const duplicateMedicines = state.medicines.filter((medicine, index, all) =>
       all.findIndex((item) => item.name.toLowerCase() === medicine.name.toLowerCase()) !== index,
     );
 
-
+    // Dynamically derive the logged-in user's access level from the members list.
+    // This ensures role changes made by a Leader take effect immediately without
+    // needing a separate state sync in updateMember.
+    const hasUidLinkedMember = state.members.some(m => m.uid === state.user.uid);
+    const myMember = state.members.find(m =>
+      m.uid === state.user.uid ||
+      (!hasUidLinkedMember && m.name.toLowerCase() === state.user.name.toLowerCase())
+    );
+    const effectiveAccessLevel = myMember?.accessLevel || state.user.accessLevel || 'Leader';
+    const effectiveElderMode = effectiveAccessLevel === 'Elderly' ? true : state.user.elderMode;
+    const effectiveUser = {
+      ...state.user,
+      accessLevel: effectiveAccessLevel as 'Leader' | 'Standard' | 'Elderly',
+      elderMode: effectiveElderMode,
+    };
 
     const householdId = state.user.householdId;
     const isLocalSession = !auth.currentUser || localProviders.has(state.user.authProvider);
 
     return {
       ...state,
+      user: effectiveUser,
       loading,
       error,
       lowStockMedicines,
@@ -319,7 +346,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const result = await createHousehold(newHousehold);
         const bundle = await fetchUserProfile();
-        const appUser = userFromProfile(bundle.profile, result.household, bundle.households);
+        const appUser = userFromProfile(bundle.profile, result.household, bundle.households, bundle.familyMembers);
         setState((current) => ({
           ...current,
           user: appUser,
@@ -337,7 +364,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       joinHousehold: async (inviteCode: string) => {
         const result = await joinHouseholdRequest(inviteCode);
         const bundle = await fetchUserProfile();
-        const appUser = userFromProfile(bundle.profile, bundle.household, bundle.households);
+        const appUser = userFromProfile(bundle.profile, bundle.household, bundle.households, bundle.familyMembers);
         setState((current) => ({
           ...current,
           user: appUser,
@@ -382,7 +409,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         const result = await updateMedicineRequest(id, medicine);
-        setState((current) => ({ ...current, medicines: current.medicines.map((item) => item.id === id ? result.medicine : item) }));
+        setState((current) => ({ ...current, medicines: current.medicines.map((item) => item.id === id ? { ...item, ...result.medicine } : item) }));
       },
       deleteMedicine: async (id) => {
         if (isLocalSession) {
@@ -417,13 +444,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setState((current) => ({ ...current, members: [...current.members, { ...nextMember, id: docRef.id }] }));
       },
       updateMember: async (id, member) => {
+        // Helper: check if updated member belongs to the logged-in user
+        // Matches by uid first; falls back to name if no profile has uid linked yet
+        const isMyProfile = (current: AppState, updatedItem: FamilyMember) => {
+          if (updatedItem.uid === current.user.uid) return true;
+          const hasLinkedProfile = current.members.some(m => m.uid === current.user.uid);
+          if (!hasLinkedProfile && updatedItem.name.toLowerCase() === current.user.name.toLowerCase()) return true;
+          return false;
+        };
+
         if (isLocalSession) {
-          setState((current) => ({ ...current, members: current.members.map((item) => item.id === id ? { ...item, ...member } : item) }));
+          setState((current) => {
+            const newMembers = current.members.map((item) => item.id === id ? { ...item, ...member } : item);
+            let newUser = current.user;
+            const updatedItem = newMembers.find(m => m.id === id);
+            if (updatedItem && isMyProfile(current, updatedItem)) {
+              const newElderMode = updatedItem.accessLevel === 'Elderly' ? true : (updatedItem.accessLevel === 'Standard' || updatedItem.accessLevel === 'Leader' ? false : current.user.elderMode);
+              newUser = { ...current.user, accessLevel: updatedItem.accessLevel || 'Leader', elderMode: newElderMode };
+            }
+            return { ...current, members: newMembers, user: newUser };
+          });
           return;
         }
 
         await updateDoc(doc(db, 'members', id), member);
-        setState((current) => ({ ...current, members: current.members.map((item) => item.id === id ? { ...item, ...member } : item) }));
+        setState((current) => {
+          const isMyProfile = (updatedItem: FamilyMember) => {
+            if (updatedItem.uid === current.user.uid) return true;
+            const hasLinkedProfile = current.members.some(m => m.uid === current.user.uid);
+            if (!hasLinkedProfile && updatedItem.name.toLowerCase() === current.user.name.toLowerCase()) return true;
+            return false;
+          };
+          const newMembers = current.members.map((item) => item.id === id ? { ...item, ...member } : item);
+          let newUser = current.user;
+          const updatedItem = newMembers.find(m => m.id === id);
+          if (updatedItem && isMyProfile(updatedItem)) {
+            const newElderMode = updatedItem.accessLevel === 'Elderly' ? true : (updatedItem.accessLevel === 'Standard' || updatedItem.accessLevel === 'Leader' ? false : current.user.elderMode);
+            newUser = { ...current.user, accessLevel: updatedItem.accessLevel || 'Leader', elderMode: newElderMode };
+          }
+          return { ...current, members: newMembers, user: newUser };
+        });
       },
       addReminder: async (reminder) => {
         if (isLocalSession) {
@@ -528,6 +588,53 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setState((current) => ({ ...current, appointments: current.appointments.filter((item) => item.id !== id) }));
       },
       getMember: (id) => state.members.find((member) => member.id === id),
+      toggleElderMode: async (enabled: boolean) => {
+        const hasUidLinkedMember = state.members.some(m => m.uid === state.user.uid);
+        const myMember = state.members.find(m =>
+          m.uid === state.user.uid ||
+          (!hasUidLinkedMember && m.name.toLowerCase() === state.user.name.toLowerCase())
+        );
+        
+        let nextAccessLevel: any = undefined;
+        if (!enabled && myMember?.accessLevel === 'Elderly') {
+          nextAccessLevel = state.user.role === 'Host' ? 'Leader' : 'Standard';
+        }
+
+        if (isLocalSession) {
+          setState((current) => {
+            const nextMembers = nextAccessLevel && myMember
+              ? current.members.map(m => m.id === myMember.id ? { ...m, accessLevel: nextAccessLevel } : m)
+              : current.members;
+            return { ...current, members: nextMembers, user: { ...current.user, elderMode: enabled } };
+          });
+          return;
+        }
+
+        const promises = [updateDoc(doc(db, 'users', state.user.uid!), { elderMode: enabled })];
+        if (nextAccessLevel && myMember) {
+          promises.push(updateDoc(doc(db, 'members', myMember.id), { accessLevel: nextAccessLevel }));
+        }
+        await Promise.all(promises);
+
+        setState((current) => {
+          const nextMembers = nextAccessLevel && myMember
+            ? current.members.map(m => m.id === myMember.id ? { ...m, accessLevel: nextAccessLevel } : m)
+            : current.members;
+          return { ...current, members: nextMembers, user: { ...current.user, elderMode: enabled } };
+        });
+      },
+      toggleCaregiverOptIn: async (memberId: string) => {
+        const currentIds = state.user.caregiverForIds || [];
+        const enabled = !currentIds.includes(memberId);
+        const newIds = enabled ? [...currentIds, memberId] : currentIds.filter(id => id !== memberId);
+        
+        if (isLocalSession) {
+          setState((current) => ({ ...current, user: { ...current.user, caregiverForIds: newIds } }));
+          return;
+        }
+        await updateDoc(doc(db, 'users', state.user.uid!), { caregiverForIds: newIds });
+        setState((current) => ({ ...current, user: { ...current.user, caregiverForIds: newIds } }));
+      },
     };
   }, [error, loadAuthenticatedUser, loadHouseholdData, loading, refreshHouseholdData, state]);
 
@@ -541,9 +648,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const { LocalNotifications } = await import('@capacitor/local-notifications');
       LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
         if (notificationAction.actionId === 'take') {
-          const reminderId = notificationAction.notification.extra?.reminderId;
-          if (reminderId && storeRef.current) {
-            storeRef.current.markDose(reminderId, 'taken');
+          const reminderIds = notificationAction.notification.extra?.reminderIds;
+          if (reminderIds && Array.isArray(reminderIds) && storeRef.current) {
+            reminderIds.forEach((id: string) => storeRef.current?.markDose(id, 'taken'));
+          } else {
+            const reminderId = notificationAction.notification.extra?.reminderId;
+            if (reminderId && storeRef.current) {
+              storeRef.current.markDose(reminderId, 'taken');
+            }
           }
         }
       });
@@ -591,6 +703,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [state.user.authProvider, state.user.householdId]);
+
+  useEffect(() => {
+    if (loading || !state.user.uid) return;
+    
+    // Auto-zero quantity for expired medicines
+    const expiredMedicines = state.medicines.filter((m) => daysUntil(m.expiryDate) < 0 && m.quantity > 0);
+    if (expiredMedicines.length > 0 && storeRef.current) {
+      expiredMedicines.forEach(m => {
+        storeRef.current!.updateMedicine(m.id, { quantity: 0 }).catch(console.error);
+      });
+    }
+  }, [state.medicines, loading, state.user.uid]);
 
   if (loading) {
     return (

@@ -3,6 +3,7 @@
 import { ChevronLeft, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/lib/app-store';
+import { daysUntil } from '@/lib/date-utils';
 
 export default function PurchaseListPage() {
   const { purchaseList, getMember, updateMedicine } = useAppStore();
@@ -26,18 +27,32 @@ export default function PurchaseListPage() {
               {purchaseList.map((medicine) => {
                 const member = getMember(medicine.assignedToId);
                 return (
-                  <div key={medicine.id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
+                    <div key={medicine.id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
                     <div className="flex items-center gap-4">
                       <img src={medicine.image} alt={medicine.name} className="w-12 h-12 rounded object-cover" />
                       <div>
-                        <p className="font-semibold text-slate-900">{medicine.name}</p>
+                        <p className="font-semibold text-slate-900">
+                          {medicine.name}
+                          {daysUntil(medicine.expiryDate) < 0 && (
+                            <span className="ml-2 text-xs font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">(Expired)</span>
+                          )}
+                        </p>
                         <p className="text-sm text-slate-600">{member?.name} - only {medicine.quantity} {medicine.unit} left</p>
                         <p className="text-xs text-slate-500">Reorder 2 days before expected shortage.</p>
                       </div>
                     </div>
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                       <Button
-                        onClick={() => updateMedicine(medicine.id, { quantity: medicine.quantity + 30 })}
+                        onClick={() => {
+                          const isExpired = daysUntil(medicine.expiryDate) < 0;
+                          const updates: any = { quantity: medicine.quantity + 30 };
+                          if (isExpired) {
+                            const nextYear = new Date();
+                            nextYear.setFullYear(nextYear.getFullYear() + 1);
+                            updates.expiryDate = nextYear.toISOString().split('T')[0];
+                          }
+                          updateMedicine(medicine.id, updates);
+                        }}
                         className="bg-teal-600 hover:bg-teal-700"
                       >
                         <ShoppingCart className="w-4 h-4" />

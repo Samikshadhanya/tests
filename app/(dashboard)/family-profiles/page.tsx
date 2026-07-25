@@ -7,6 +7,7 @@ import {
   CalendarDays,
   ChevronLeft,
   Heart,
+  Pencil,
   Pill,
   Plus,
   Shield,
@@ -20,13 +21,23 @@ import { useAppStore } from '@/lib/app-store';
 
 export default function FamilyProfilePage() {
   const store = useAppStore();
-  const { members, medicines, todayReminders, caregivers, addCaregiver, removeCaregiver } = store;
+  const { user, members, medicines, todayReminders, caregivers, addCaregiver, removeCaregiver, toggleCaregiverOptIn } = store;
   
   const [selectedMemberId, setSelectedMemberId] = useState(members[0]?.id ?? '');
   const [isCreatingProfile, setIsCreatingProfile] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isAddingMedicine, setIsAddingMedicine] = useState(false);
   const [isAddingCaretaker, setIsAddingCaretaker] = useState(false);
   const [medicineFormError, setMedicineFormError] = useState('');
+
+  // Edit profile form state
+  const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState('');
+  const [editAge, setEditAge] = useState('');
+  const [editGender, setEditGender] = useState('Unspecified');
+  const [editAllergies, setEditAllergies] = useState('');
+  const [editHealthNotes, setEditHealthNotes] = useState('');
+  const [editAccessLevel, setEditAccessLevel] = useState<'Leader' | 'Standard' | 'Elderly'>('Standard');
   
   // New profile form state
   const [newName, setNewName] = useState('');
@@ -35,6 +46,7 @@ export default function FamilyProfilePage() {
   const [newGender, setNewGender] = useState('Unspecified');
   const [newAllergies, setNewAllergies] = useState('');
   const [newHealthNotes, setNewHealthNotes] = useState('');
+  const [newAccessLevel, setNewAccessLevel] = useState<'Leader' | 'Standard' | 'Elderly'>('Standard');
   
   const [caretakerName, setCaretakerName] = useState('');
   const [caretakerContact, setCaretakerContact] = useState('');
@@ -76,11 +88,57 @@ export default function FamilyProfilePage() {
 
   const minExpiryDate = getTomorrowDate();
 
+  const handleEditProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedMember?.id || !editName.trim()) return;
+    try {
+      const ageNum = parseInt(editAge);
+      let finalAccessLevel = editAccessLevel;
+      if (!isNaN(ageNum) && ageNum >= 60) {
+        finalAccessLevel = 'Elderly';
+      } else if (finalAccessLevel === ('Elderly' as any)) {
+        finalAccessLevel = 'Standard';
+      }
+      await store.updateMember(selectedMember.id, {
+        name: editName.trim(),
+        role: editRole,
+        age: editAge || 'Unspecified',
+        gender: editGender,
+        knownAllergies: editAllergies || 'None known',
+        healthNotes: editHealthNotes.split(',').map(n => n.trim()).filter(Boolean),
+        accessLevel: finalAccessLevel,
+      });
+      setIsEditingProfile(false);
+    } catch (error) {
+      console.error(error);
+      alert('Failed to save profile changes.');
+    }
+  };
+
+  const openEditModal = () => {
+    if (!selectedMember) return;
+    setEditName(selectedMember.name);
+    setEditRole(selectedMember.role);
+    setEditAge(selectedMember.age !== 'Unspecified' ? selectedMember.age : '');
+    setEditGender(selectedMember.gender || 'Unspecified');
+    setEditAllergies(selectedMember.knownAllergies || '');
+    setEditHealthNotes(selectedMember.healthNotes?.join(', ') || '');
+    setEditAccessLevel((selectedMember.accessLevel as any) || 'Standard');
+    setIsEditingProfile(true);
+  };
+
   const handleCreateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
 
     try {
+      const ageNum = parseInt(newAge);
+      let finalAccessLevel = newAccessLevel;
+      if (!isNaN(ageNum) && ageNum >= 60) {
+        finalAccessLevel = 'Elderly';
+      } else if (finalAccessLevel === ('Elderly' as any)) {
+        finalAccessLevel = 'Standard';
+      }
       await store.addMember({
         name: newName.trim(),
         role: newRole,
@@ -89,6 +147,7 @@ export default function FamilyProfilePage() {
         image: `https://ui-avatars.com/api/?name=${encodeURIComponent(newName.trim())}&background=random`,
         healthNotes: newHealthNotes.split(',').map(n => n.trim()).filter(Boolean),
         knownAllergies: newAllergies || 'None known',
+        accessLevel: finalAccessLevel,
       });
 
       setIsCreatingProfile(false);
@@ -98,6 +157,7 @@ export default function FamilyProfilePage() {
       setNewGender('Unspecified');
       setNewAllergies('');
       setNewHealthNotes('');
+      setNewAccessLevel('Standard');
     } catch (error) {
       console.error(error);
       alert('Failed to save profile. Please check your connection or permissions.');
@@ -161,31 +221,74 @@ export default function FamilyProfilePage() {
                   >
                     {members.map((member) => <option key={member.id} value={member.id}>{member.name} - {member.role}</option>)}
                   </select>
-                  <Button 
-                    onClick={() => setIsCreatingProfile(true)}
-                    variant="outline"
-                    className="w-full border-teal-200 text-teal-700 hover:bg-teal-100 bg-white"
-                  >
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    Create Profile
-                  </Button>
-                  <Button
-                    onClick={() => setIsAddingMedicine(true)}
-                    disabled={!selectedMember}
-                    className="w-full bg-teal-600 hover:bg-teal-700"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Pill for Selected Member
-                  </Button>
+                  {user.accessLevel === 'Leader' && (
+                    <Button 
+                      onClick={() => setIsCreatingProfile(true)}
+                      variant="outline"
+                      className="w-full border-teal-200 text-teal-700 hover:bg-teal-100 bg-white"
+                    >
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Create Profile
+                    </Button>
+                  )}
+                  {!(user.accessLevel === 'Standard' && selectedMember?.uid !== user.uid) && (
+                    <Button
+                      onClick={() => setIsAddingMedicine(true)}
+                      disabled={!selectedMember}
+                      className="w-full bg-teal-600 hover:bg-teal-700"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Pill for Selected Member
+                    </Button>
+                  )}
                 </div>
                 {selectedMember && (
-                  <div className="flex items-center gap-3 mt-5 p-3 bg-white rounded-lg border border-teal-100 shadow-sm">
-                    <img src={selectedMember.image} alt={selectedMember.name} className="w-14 h-14 rounded-full object-cover border-2 border-teal-100" />
-                    <div className="min-w-0 flex-1">
-                      <h2 className="font-bold text-slate-900">{selectedMember.name}</h2>
-                      <p className="text-sm text-slate-600">{selectedMember.role}{selectedMember.age !== 'Unspecified' ? `, age ${selectedMember.age}` : ''}</p>
-                      <p className="text-xs text-slate-500">{selectedMember.gender === 'Unspecified' ? 'Details not added yet' : selectedMember.gender}</p>
+                  <div className="flex flex-col gap-3 mt-5 p-3 bg-white rounded-lg border border-teal-100 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <img src={selectedMember.image} alt={selectedMember.name} className="w-14 h-14 rounded-full object-cover border-2 border-teal-100" />
+                      <div className="min-w-0 flex-1">
+                        <h2 className="font-bold text-slate-900">{selectedMember.name}</h2>
+                        <p className="text-sm text-slate-600">{selectedMember.role}{selectedMember.age !== 'Unspecified' ? `, age ${selectedMember.age}` : ''}</p>
+                        <p className="text-xs text-slate-500">{selectedMember.gender === 'Unspecified' ? 'Details not added yet' : selectedMember.gender}</p>
+                      </div>
+                      {!(user.accessLevel === 'Standard' && selectedMember?.uid !== user.uid) && (
+                        <button
+                          onClick={openEditModal}
+                          className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:bg-teal-50 hover:text-teal-700 transition"
+                          title="Edit profile"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
+                    {user.accessLevel === 'Leader' && (
+                      <div className="flex items-center justify-between border-t border-teal-50 pt-2 mt-1">
+                        <span className="text-xs font-semibold text-teal-800">App Access Level:</span>
+                        <select 
+                          value={selectedMember.accessLevel || 'Standard'}
+                          onChange={(e) => store.updateMember(selectedMember.id, { accessLevel: e.target.value as any })}
+                          className="bg-slate-50 border border-teal-100 rounded text-xs p-1"
+                        >
+                          <option value="Standard">Standard (Full Access)</option>
+                          <option value="Elderly">Elderly (Pills Only)</option>
+                          <option value="Leader">Leader (Full Access)</option>
+                        </select>
+                      </div>
+                    )}
+                    {selectedMember.uid !== user.uid && (
+                      <div className="flex items-center justify-between border-t border-teal-50 pt-2 mt-1">
+                        <span className="text-xs font-semibold text-teal-800">Get reminders for them?</span>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            checked={user.caregiverForIds?.includes(selectedMember.id) || false}
+                            onChange={() => toggleCaregiverOptIn(selectedMember.id)}
+                          />
+                          <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-600"></div>
+                        </label>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -350,7 +453,115 @@ export default function FamilyProfilePage() {
         </div>
       </div>
 
+      {isEditingProfile && selectedMember && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-xl bg-white shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-200 sm:zoom-in">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Edit Profile</h2>
+                <p className="text-sm text-slate-500 mt-0.5">Editing {selectedMember.name}</p>
+              </div>
+              <button onClick={() => setIsEditingProfile(false)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditProfile} className="p-5 space-y-4">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">Full Name</label>
+                <input
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Role / Relationship</label>
+                  <input
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value)}
+                    className="min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                    placeholder="e.g. Spouse"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Age</label>
+                  <input
+                    type="number"
+                    value={editAge}
+                    onChange={(e) => setEditAge(e.target.value)}
+                    className="min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                    placeholder="e.g. 34"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">Gender</label>
+                <select
+                  value={editGender}
+                  onChange={(e) => setEditGender(e.target.value)}
+                  className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                >
+                  <option>Unspecified</option>
+                  <option>Male</option>
+                  <option>Female</option>
+                  <option>Other</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">Known Allergies</label>
+                <p className="text-xs text-slate-500">List any medicines, foods or substances that cause allergic reactions.</p>
+                <textarea
+                  value={editAllergies}
+                  onChange={(e) => setEditAllergies(e.target.value)}
+                  rows={2}
+                  className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                  placeholder="e.g. Penicillin, Peanuts, Latex (leave blank if none)"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">Health Notes</label>
+                <p className="text-xs text-slate-500">Comma-separated conditions or notes (e.g. High blood pressure, Asthma)</p>
+                <textarea
+                  value={editHealthNotes}
+                  onChange={(e) => setEditHealthNotes(e.target.value)}
+                  rows={2}
+                  className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                  placeholder="e.g. Diabetes, High blood pressure"
+                />
+              </div>
+
+              {user.accessLevel === 'Leader' && (
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">App Access Level</label>
+                  <select
+                    value={editAccessLevel}
+                    onChange={(e) => setEditAccessLevel(e.target.value as any)}
+                    className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                  >
+                    <option value="Standard">Standard (Full Access)</option>
+                    <option value="Leader">Leader (Full Access)</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="pt-2 flex justify-end gap-3">
+                <Button type="button" variant="outline" onClick={() => setIsEditingProfile(false)}>Cancel</Button>
+                <Button type="submit" className="bg-teal-600 hover:bg-teal-700 text-white">Save Changes</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {isCreatingProfile && (
+
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 backdrop-blur-sm sm:items-center sm:p-4">
           <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-xl bg-white shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-200 sm:zoom-in">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
@@ -427,6 +638,19 @@ export default function FamilyProfilePage() {
                   className="min-h-24 w-full resize-none rounded-lg border border-slate-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
                   placeholder="e.g. High blood pressure, Asthma"
                 />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">App Access Level</label>
+                <select 
+                  value={newAccessLevel}
+                  onChange={(e) => setNewAccessLevel(e.target.value as any)}
+                  className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                >
+                  <option value="Standard">Standard (Full Access)</option>
+                  <option value="Elderly">Elderly (Pills Only)</option>
+                  {user.accessLevel === 'Leader' && <option value="Leader">Leader (Full Access)</option>}
+                </select>
               </div>
 
               <div className="pt-4 flex justify-end gap-3">

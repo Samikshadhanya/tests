@@ -4,6 +4,7 @@ import { AlertTriangle, Bell, CalendarClock, ChevronDown, Home, LogOut, Menu, Pa
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/app-store';
+import { daysUntil } from '@/lib/date-utils';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -34,13 +35,16 @@ export default function Header({ onMenuClick }: HeaderProps) {
       title: 'Low stock',
       message: `${medicine.name} has ${medicine.quantity} ${medicine.unit} left.`,
     })),
-    ...expiringMedicines.map((medicine) => ({
-      id: `expiry-${medicine.id}`,
-      type: 'info',
-      icon: CalendarClock,
-      title: 'Expiring soon',
-      message: `${medicine.name} expires on ${medicine.expiryDate}.`,
-    })),
+    ...expiringMedicines.map((medicine) => {
+      const isExpired = daysUntil(medicine.expiryDate) < 0;
+      return {
+        id: `expiry-${medicine.id}`,
+        type: isExpired ? 'alert' : 'info',
+        icon: CalendarClock,
+        title: isExpired ? 'Expired medicine' : 'Expiring soon',
+        message: `${medicine.name} ${isExpired ? `expired on ${medicine.expiryDate}. Please remove it.` : `expires on ${medicine.expiryDate}.`}`,
+      };
+    }),
   ];
 
   return (

@@ -4,9 +4,14 @@ import Link from 'next/link';
 import { AlertTriangle, Bell, Calendar, Copy, Package, ShieldAlert } from 'lucide-react';
 import UpcomingEvents from '@/components/upcoming-events';
 import { useAppStore } from '@/lib/app-store';
+import ElderDashboard from '@/components/elder-dashboard';
 
 export default function DashboardPage() {
-  const { todayReminders, lowStockMedicines, expiringMedicines, duplicateMedicines, medicines, getMember } = useAppStore();
+  const { user, todayReminders, lowStockMedicines, expiringMedicines, duplicateMedicines, medicines, getMember } = useAppStore();
+
+  if (user.elderMode) {
+    return <ElderDashboard />;
+  }
 
   // Calculate escalations: reminders that are "upcoming" and > 30 minutes past their time
   const now = new Date();

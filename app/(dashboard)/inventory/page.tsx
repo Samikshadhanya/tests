@@ -5,6 +5,7 @@ import { ChevronLeft, ExternalLink, Plus, Search } from 'lucide-react';
 import MedicineTable from '@/components/medicine-table';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/lib/app-store';
+import { daysUntil } from '@/lib/date-utils';
 
 export default function InventoryPage() {
   const { medicines, members, addMedicine, lowStockMedicines, expiringMedicines, duplicateMedicines } = useAppStore();
@@ -165,7 +166,7 @@ export default function InventoryPage() {
           </form>
         )}
 
-        <MedicineTable medicines={medicines} showDelete />
+        <MedicineTable medicines={medicines.filter(m => !(daysUntil(m.expiryDate) < 0 && m.quantity === 0))} showDelete />
       </div>
     </>
   );
