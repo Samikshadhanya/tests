@@ -7,6 +7,8 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   signInWithCredential,
   GoogleAuthProvider,
@@ -144,6 +146,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Handle redirect result from Google sign-in (fires on page load after redirect)
+    getRedirectResult(auth).catch((err) => {
+      if (err?.code === 'auth/unauthorized-domain') {
+        const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'your Vercel domain';
+        setError(`Domain not authorized: Please add "${currentDomain}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`);
+      } else if (err?.code && err.code !== 'auth/popup-closed-by-user') {
+        console.error('Redirect sign-in error:', err);
+        setError(`Firebase: Error (${err.code}).`);
+      }
+    });
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setError(null);
 
@@ -252,18 +265,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               throw new Error('Google native sign-in failed: No ID token returned.');
             }
           } else {
-            try {
+            const isLocalhost = typeof window !== 'undefined' && 
+              (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+            
+            if (isLocalhost) {
+              // Popup works fine on localhost
               await signInWithPopup(auth, googleProvider);
-            } catch (popupErr: any) {
-              if (popupErr.code === 'auth/unauthorized-domain') {
-                const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'your Vercel domain';
-                throw new Error(`Domain not authorized: Please add "${currentDomain}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`);
-              } else if (popupErr.code === 'auth/popup-blocked') {
-                const { signInWithRedirect } = await import('firebase/auth');
-                await signInWithRedirect(auth, googleProvider);
-                return;
-              }
-              throw popupErr;
+            } else {
+              // Use redirect on production (Vercel, etc.) — popups fail cross-origin
+              await signInWithRedirect(auth, googleProvider);
+              return; // Page will redirect; onAuthStateChanged + getRedirectResult handle the rest
             }
           }
           await loadAuthenticatedUser(auth.currentUser?.uid);
