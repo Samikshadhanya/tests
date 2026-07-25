@@ -265,16 +265,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               throw new Error('Google native sign-in failed: No ID token returned.');
             }
           } else {
-            const isLocalhost = typeof window !== 'undefined' && 
-              (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-            
-            if (isLocalhost) {
-              // Popup works fine on localhost
+            try {
               await signInWithPopup(auth, googleProvider);
-            } else {
-              // Use redirect on production (Vercel, etc.) — popups fail cross-origin
+            } catch (popupErr: any) {
+              console.warn('Popup auth error/blocked, falling back to redirect:', popupErr?.code || popupErr?.message);
+              if (popupErr?.code === 'auth/unauthorized-domain') {
+                const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'your Vercel domain';
+                throw new Error(`Domain not authorized: Please add "${currentDomain}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`);
+              }
               await signInWithRedirect(auth, googleProvider);
-              return; // Page will redirect; onAuthStateChanged + getRedirectResult handle the rest
+              return;
             }
           }
           await loadAuthenticatedUser(auth.currentUser?.uid);
