@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronLeft, ShieldCheck, Users, Link as LinkIcon, KeyRound, Bell } from 'lucide-react';
+import { ChevronLeft, ShieldCheck, Users, Link as LinkIcon, KeyRound, Bell, Trash2 } from 'lucide-react';
 import { useAppStore } from '@/lib/app-store';
 import { Button } from '@/components/ui/button';
 import { Capacitor } from '@capacitor/core';
@@ -9,13 +9,16 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 // Replaced Switch with a custom segmented control
 
 export default function SettingsPage() {
-  const { user, generateInviteCode, joinHousehold, toggleElderMode } = useAppStore();
+  const { user, generateInviteCode, joinHousehold, deleteHousehold, toggleElderMode } = useAppStore();
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [loadingInvite, setLoadingInvite] = useState(false);
   const [loadingJoin, setLoadingJoin] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joinSuccess, setJoinSuccess] = useState<string | null>(null);
+  const [deletingHouseholdId, setDeletingHouseholdId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const requestNotificationPermission = async () => {
     try {
@@ -84,6 +87,19 @@ export default function SettingsPage() {
       setJoinError(err.message || 'Failed to join household.');
     } finally {
       setLoadingJoin(false);
+    }
+  };
+
+  const handleDeleteHousehold = async (householdId: string) => {
+    try {
+      setDeletingHouseholdId(householdId);
+      setDeleteError(null);
+      await deleteHousehold(householdId);
+      setDeleteConfirmId(null);
+    } catch (err: any) {
+      setDeleteError(err.message || 'Failed to delete household.');
+    } finally {
+      setDeletingHouseholdId(null);
     }
   };
 
@@ -203,6 +219,58 @@ export default function SettingsPage() {
                 {joinSuccess && <p className="text-sm font-medium text-green-700">{joinSuccess}</p>}
               </form>
             </div>
+
+            {user.householdIds && user.householdIds.length > 0 && (
+              <>
+                <hr className="border-slate-100" />
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800 mb-1 flex items-center gap-2">
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                    Delete a Household
+                  </h3>
+                  <p className="text-xs text-slate-500 mb-3">Only the household owner can delete it. This cannot be undone.</p>
+                  {deleteError && <p className="text-sm text-red-600 mb-2">{deleteError}</p>}
+                  <div className="space-y-2">
+                    {user.householdIds.map((hid, i) => {
+                      const name = user.householdNames?.[i] ?? user.households?.[i] ?? hid;
+                      return (
+                        <div key={hid} className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-2 text-sm">
+                          <span className="font-medium text-slate-800">{name}</span>
+                          {deleteConfirmId === hid ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-red-600">Delete?</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setDeleteConfirmId(null)}
+                                className="h-7 text-xs"
+                              >Cancel</Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleDeleteHousehold(hid)}
+                                disabled={deletingHouseholdId === hid}
+                                className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white"
+                              >
+                                {deletingHouseholdId === hid ? 'Deleting...' : 'Confirm'}
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => { setDeleteConfirmId(hid); setDeleteError(null); }}
+                              className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-3 h-3 mr-1" /> Delete
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
           </section>
         </div>
       </div>

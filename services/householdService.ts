@@ -1,4 +1,4 @@
-import { collection, doc, addDoc, getDocs, updateDoc, getDoc, setDoc, query, where, documentId } from 'firebase/firestore';
+import { collection, doc, addDoc, getDocs, updateDoc, getDoc, setDoc, deleteDoc, query, where, documentId } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import type { Household, UserProfile, FamilyMember } from '@/lib/types';
 
@@ -191,4 +191,32 @@ export async function joinHousehold(inviteCode: string) {
   }
 
   return { householdId };
+}
+
+export async function deleteHousehold(householdId: string) {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not authenticated');
+
+  // Verify ownership — only the owner can delete
+  const householdRef = doc(db, 'households', householdId);
+  const householdDoc = await getDoc(householdRef);
+  if (!householdDoc.exists()) throw new Error('Household not found');
+  if (householdDoc.data().ownerUid !== uid) throw new Error('Only the household owner can delete it');
+
+  // Remove the household doc
+  await deleteDoc(householdRef);
+
+  // Remove the householdId from the user's profile
+  const userRef = doc(db, 'users', uid);
+  const userDoc = await getDoc(userRef);
+  if (userDoc.exists()) {
+    const data = userDoc.data();
+    const newIds = (data.householdIds || []).filter((id: string) => id !== householdId);
+    const newActiveId = data.activeHouseholdId === householdId
+      ? (newIds[0] || null)
+      : data.activeHouseholdId;
+    await updateDoc(userRef, { householdIds: newIds, activeHouseholdId: newActiveId });
+  }
+
+  return { ok: true as const };
 }

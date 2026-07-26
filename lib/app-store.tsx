@@ -17,7 +17,7 @@ import { initialState, medicineImage, createDemoHouseholdState } from '@/lib/ini
 import type { AppState, AppUser, Caregiver, ExpiredMedicineReminder, FamilyMember, Household, Medicine, MedicineInput, MemberInput, ReminderInput, ReminderLog, Appointment, AppointmentInput } from '@/lib/types';
 import { auth, db, googleProvider } from '@/lib/firebase';
 import { daysUntil } from '@/lib/date-utils';
-import { createHousehold, fetchUserProfile, setActiveHousehold, generateInviteCode as generateInviteCodeRequest, joinHousehold as joinHouseholdRequest } from '@/services/householdService';
+import { createHousehold, fetchUserProfile, setActiveHousehold, generateInviteCode as generateInviteCodeRequest, joinHousehold as joinHouseholdRequest, deleteHousehold as deleteHouseholdRequest } from '@/services/householdService';
 import { createMedicine, deleteMedicine as deleteMedicineRequest, fetchMedicines, updateMedicine as updateMedicineRequest } from '@/services/medicineService';
 import { createReminder, deleteReminder as deleteReminderRequest, fetchReminders, updateReminder as updateReminderRequest } from '@/services/reminderService';
 import { createCaregiver, deleteCaregiver as deleteCaregiverRequest, fetchCaregivers } from '@/services/caregiverService';
@@ -50,6 +50,7 @@ type AppStore = AppState & {
   addHousehold: (household: string) => Promise<void>;
   generateInviteCode: () => Promise<string>;
   joinHousehold: (inviteCode: string) => Promise<void>;
+  deleteHousehold: (householdId: string) => Promise<void>;
   lowStockMedicines: Medicine[];
   expiringMedicines: Medicine[];
   duplicateMedicines: Medicine[];
@@ -461,6 +462,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           appointments: [],
         }));
         await loadHouseholdData(result.householdId);
+      },
+      deleteHousehold: async (householdId: string) => {
+        if (isLocalSession) throw new Error('Cannot delete household in guest mode');
+        await deleteHouseholdRequest(householdId);
+        // Reload profile so the removed household is cleared from state
+        const bundle = await fetchUserProfile();
+        const appUser = userFromProfile(bundle.profile, bundle.household, bundle.households, bundle.familyMembers);
+        setState((current) => ({
+          ...current,
+          user: appUser,
+          members: bundle.familyMembers,
+          medicines: [],
+          reminderLogs: [],
+          caregivers: [],
+          appointments: [],
+        }));
+        if (appUser.householdId) await loadHouseholdData(appUser.householdId);
       },
       addMedicine: async (medicine) => {
         const reminderTimes = medicine.reminderTimes.filter(Boolean);
