@@ -3,6 +3,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, Bot, User, Send, RefreshCw, AlertCircle, ShieldCheck, HeartPulse, Pill, Calendar, Clock } from 'lucide-react';
 import { useAppStore } from '@/lib/app-store';
+import { FormattedMessage } from '@/components/formatted-message';
+import { toast } from '@/hooks/use-toast';
+import { sendRefillNotificationToLeader, triggerAutoSMS } from '@/lib/notifications';
 
 interface Message {
   id: string;
@@ -24,7 +27,12 @@ export default function AIAssistantPage() {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { user, medicines, todayReminders, appointments, lowStockMedicines, expiringMedicines } = useAppStore();
+  const { user, members, medicines, todayReminders, appointments, caregivers, lowStockMedicines, expiringMedicines, markDose } = useAppStore();
+
+  const leaderMember = members.find((m) => m.accessLevel === 'Leader');
+  const leaderCaregiver = caregivers.find((c) => c.accessLevel === 'Leader');
+  const leaderName = leaderMember ? leaderMember.name : (leaderCaregiver?.name || user?.name || 'Household Leader');
+  const leaderPhone = leaderMember?.phone || leaderCaregiver?.phone || user?.emergencyContact?.phone || '';
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -53,20 +61,24 @@ export default function AIAssistantPage() {
     try {
       const userContext = {
         userName: user?.name,
+        leaderName,
         medicines: medicines.map((m) => ({
           name: m.name,
           dosage: m.dosage,
-          stockCount: m.stockCount,
-          instructions: m.instructions,
+          quantity: m.quantity,
+          instructions: m.mealInstruction,
         })),
-        reminders: todayReminders.map((r) => ({
-          medicineName: r.medicineName,
-          time: r.time,
-          status: r.status,
-        })),
+        reminders: todayReminders.map((r) => {
+          const med = medicines.find((m) => m.id === r.medicineId);
+          return {
+            medicineName: med?.name || r.medicineId,
+            time: r.time,
+            status: r.status,
+          };
+        }),
         appointments: appointments.map((a) => ({
-          title: a.title,
           doctorName: a.doctorName,
+          specialty: a.specialty,
           date: a.date,
           time: a.time,
         })),
@@ -82,7 +94,29 @@ export default function AIAssistantPage() {
       });
 
       const data = await res.json();
-      const replyContent = data.reply || data.error || 'Unable to fetch response.';
+      let replyContent = data.reply || data.error || 'Unable to fetch response.';
+
+      // Parse and execute DOSE LOGGING action tag if present
+      const actionMatch = replyContent.match(/\[ACTION:MARK_TAKEN:(.+?)\]/i) || queryText.match(/(?:took|taken|marked)\s+(.+?)(?:dose|pill|$)/i);
+      if (actionMatch && actionMatch[1]) {
+        const medQuery = actionMatch[1].trim();
+        replyContent = replyContent.replace(/\[ACTION:MARK_TAKEN:.+?\]/gi, '').trim();
+
+        const targetReminder = todayReminders.find((r) => {
+          const med = medicines.find((m) => m.id === r.medicineId);
+          const medName = med?.name || r.medicineId;
+          return medName.toLowerCase().includes(medQuery.toLowerCase()) || medQuery.toLowerCase().includes(medName.toLowerCase());
+        }) || todayReminders.find((r) => r.status === 'upcoming');
+
+        if (targetReminder) {
+          await markDose(targetReminder.id, 'taken');
+          const med = medicines.find((m) => m.id === targetReminder.medicineId);
+          toast({
+            title: '✅ Dose Marked Taken via Chat',
+            description: `Updated schedule: ${med?.name || targetReminder.medicineId} marked as TAKEN!`,
+          });
+        }
+      }
 
       const botMsg: Message = {
         id: (Date.now() + 1).toString(),
@@ -92,6 +126,16 @@ export default function AIAssistantPage() {
       };
 
       setMessages((prev) => [...prev, botMsg]);
+
+      // If refill intent detected in prompt or response, automatically trigger SMS message to Leader
+      if (/refill|restock|order\s+more/i.test(queryText) || /Refill Alert/i.test(replyContent)) {
+        sendRefillNotificationToLeader(leaderName, queryText);
+        triggerAutoSMS(leaderName, leaderPhone, queryText);
+        toast({
+          title: '💬 Auto SMS Messaging Dispatched',
+          description: `Opened SMS message to Household Leader (${leaderName}) for restock.`,
+        });
+      }
     } catch (err: any) {
       setMessages((prev) => [
         ...prev,
@@ -184,21 +228,43 @@ export default function AIAssistantPage() {
                 <p className="italic text-slate-400">No scheduled doses for today.</p>
               ) : (
                 <ul className="space-y-1.5">
-                  {todayReminders.slice(0, 4).map((r, i) => (
-                    <li key={i} className="flex justify-between items-center text-slate-700 bg-slate-50 p-1.5 rounded-lg">
-                      <span className="truncate font-medium">{r.medicineName}</span>
-                      <span className="text-[11px] font-bold text-teal-700">{r.time}</span>
-                    </li>
-                  ))}
+                  {todayReminders.slice(0, 4).map((r, i) => {
+                    const med = medicines.find((m) => m.id === r.medicineId);
+                    return (
+                      <li key={i} className="flex justify-between items-center text-slate-700 bg-slate-50 p-1.5 rounded-lg">
+                        <span className="truncate font-medium">{med?.name || r.medicineId}</span>
+                        <span className="text-[11px] font-bold text-teal-700">{r.time}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
           </div>
 
+          <div className="rounded-2xl border border-teal-200 bg-teal-50/70 p-4 shadow-sm space-y-2.5">
+            <h3 className="text-xs font-semibold text-teal-900 uppercase tracking-wider flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-teal-600" /> Interaction Checker
+            </h3>
+            <p className="text-[11px] text-teal-800 leading-normal">
+              Cross-reference all logged medicines for safe combination & food warnings.
+            </p>
+            <button
+              onClick={() => {
+                const medNames = medicines.map((m) => m.name).join(', ');
+                handleSend(`Please run a safety and drug interaction check for all my logged medicines: ${medNames || 'all active pills'}. Are they safe to take together? Highlight food restrictions or cautions, and advise if I should contact my doctor for cross-reference.`);
+              }}
+              disabled={loading}
+              className="w-full rounded-xl bg-teal-600 px-3 py-2 text-xs font-bold text-white hover:bg-teal-700 active:scale-95 transition-all shadow-2xs disabled:opacity-50"
+            >
+              🛡️ Check All My Medicines
+            </button>
+          </div>
+
           <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
             <ShieldCheck className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <p className="leading-relaxed">
-              <strong>Medical Notice:</strong> MedHome AI provides assistance based on logged data. Always verify dosage with your provider.
+              <strong>Medical Notice:</strong> MedHome AI provides assistance based on logged data. Always verify dosage & cross-reference with your doctor or pharmacist.
             </p>
           </div>
         </div>
@@ -225,7 +291,7 @@ export default function AIAssistantPage() {
                       : 'bg-white text-slate-800 border border-slate-200/90 rounded-bl-none'
                   }`}
                 >
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  <FormattedMessage content={msg.content} role={msg.role} leaderName={leaderName} leaderPhone={leaderPhone} />
                   <div
                     className={`mt-1 text-[11px] text-right ${
                       msg.role === 'user' ? 'text-teal-200' : 'text-slate-400'

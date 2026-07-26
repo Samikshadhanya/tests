@@ -29,13 +29,17 @@ RULES:
 1. Always maintain a warm, clear, and reassuring tone suitable for caregivers and seniors.
 2. Rely on the provided user context (medicines, reminders, appointments) when answering personal schedule or inventory questions.
 3. For medical or pill questions, provide clear helpful guidance but end with a gentle disclaimer: "Note: Always consult your doctor or pharmacist for official medical diagnoses and changes to your prescription."
-4. Format your responses nicely with markdown (bullet points, bold text).`;
+4. When listing or summarizing items (such as medicines inventory, dosages, reminders, stock levels, or appointments), format them into a neat Markdown table with clear column headers (for example: | Medicine | Dosage | Stock | Instructions |). Avoid clumsy bullet lists when tabular data is clearer. Keep text concise and easy to read.
+5. AUTOMATED REFILL ALERTS: When the user asks for a refill or requests more medicine (e.g. "I need a refill", "refill Fentanyl", "order restock"), state clearly that MedHome has AUTOMATICALLY logged the refill request and dispatched a Refill Alert notification to Household Leader ([Leader Name]). Specify the exact pill name and requested quantity (if unspecified by user, ALWAYS default quantity to "1 strip"). Format it as a prominent notice starting with: "🔔 Refill Alert Dispatched to [Leader Name]: Refill request registered for [Pill Name] ([Quantity, e.g. 1 strip])."
+6. DOSE LOGGING: When the user indicates they took a dose (e.g. "I just took my Paracetamol", "marked morning pill taken"), include the action tag "[ACTION:MARK_TAKEN:MedicineName]" in your text response so MedHome automatically updates their dose schedule in real time.
+7. DRUG INTERACTIONS & SAFETY CHECK: When asked about drug interactions or taking medications together, thoroughly evaluate all logged medicines. Highlight any potential interactions, food/timing precautions, or side effects. If there are any risks or uncertainties, explicitly instruct the user to contact their doctor or pharmacist for official cross-reference before taking them.`;
 
     if (userContext) {
-      const { medicines, reminders, appointments, userName } = userContext;
+      const { medicines, reminders, appointments, userName, leaderName } = userContext;
       
       systemContext += `\n\n--- CURRENT USER CONTEXT ---`;
       if (userName) systemContext += `\nUser Name: ${userName}`;
+      if (leaderName) systemContext += `\nHousehold Leader: ${leaderName}`;
 
       if (medicines && Array.isArray(medicines) && medicines.length > 0) {
         systemContext += `\n\nMEDICINES INVENTORY (${medicines.length} total):\n` +
@@ -56,6 +60,8 @@ RULES:
       systemContext += `\n--- END USER CONTEXT ---\n`;
     }
 
+    const modelName = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+
     // Call Gemini API via GoogleGenAI SDK or REST API
     try {
       const ai = new GoogleGenAI({ apiKey });
@@ -69,7 +75,7 @@ RULES:
       ];
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: modelName,
         contents
       });
 
@@ -80,7 +86,7 @@ RULES:
       
       // Fallback REST call to Google Gemini API
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -8,6 +8,7 @@ export type FamilyMember = {
   image: string;
   healthNotes: string[];
   knownAllergies: string;
+  phone?: string;
   uid?: string;
   accessLevel?: 'Leader' | 'Standard' | 'Elderly';
 };

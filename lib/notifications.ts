@@ -187,3 +187,53 @@ export async function syncLocalNotifications(
     }
   }
 }
+
+export async function sendRefillNotificationToLeader(leaderName: string, pillDetails: string) {
+  const title = `🔔 Refill Alert Dispatched to ${leaderName}`;
+  const body = `Automated restock alert logged for ${pillDetails}.`;
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            title,
+            body,
+            id: Math.floor(Math.random() * 1000000),
+            schedule: { at: new Date(Date.now() + 300) },
+          },
+        ],
+      });
+    } catch (err) {
+      console.warn('Native notification error:', err);
+    }
+  } else if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(title, { body });
+    } catch (err) {
+      console.warn('Web Notification error:', err);
+    }
+  }
+}
+
+export function triggerAutoSMS(leaderName: string, leaderPhone: string, pillDetails: string) {
+  let detail = pillDetails.trim();
+  if (detail) {
+    const hasQuantity = /\d+|strip|pack|box|bottle|unit|tablet/i.test(detail);
+    if (!hasQuantity) {
+      detail += ' (Quantity: 1 strip)';
+    }
+  } else {
+    detail = 'requested medication (Quantity: 1 strip)';
+  }
+
+  const alertText = `Hi ${leaderName || 'Leader'}! MedHome Refill Alert: Please assist with restocking ${detail}.`;
+  const phoneDigits = leaderPhone ? leaderPhone.replace(/\D/g, '') : '';
+  const smsUrl = phoneDigits
+    ? `sms:${phoneDigits}?body=${encodeURIComponent(alertText)}`
+    : `sms:?body=${encodeURIComponent(alertText)}`;
+
+  if (typeof window !== 'undefined') {
+    window.location.href = smsUrl;
+  }
+}

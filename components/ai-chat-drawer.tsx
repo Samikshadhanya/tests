@@ -3,6 +3,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, Bot, User, Send, X, RefreshCw, AlertCircle, ChevronDown, Minimize2 } from 'lucide-react';
 import { useAppStore } from '@/lib/app-store';
+import { FormattedMessage } from '@/components/formatted-message';
+import { toast } from '@/hooks/use-toast';
+import { sendRefillNotificationToLeader, triggerAutoSMS } from '@/lib/notifications';
 
 interface Message {
   id: string;
@@ -25,13 +28,18 @@ export default function AIChatDrawer() {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { user, medicines, todayReminders, appointments } = useAppStore();
+  const { user, members, medicines, todayReminders, appointments, caregivers, markDose } = useAppStore();
+
+  const leaderMember = members.find((m) => m.accessLevel === 'Leader');
+  const leaderCaregiver = caregivers.find((c) => c.accessLevel === 'Leader');
+  const leaderName = leaderMember ? leaderMember.name : (leaderCaregiver?.name || user?.name || 'Household Leader');
+  const leaderPhone = leaderMember?.phone || leaderCaregiver?.phone || user?.emergencyContact?.phone || '';
 
   const quickPrompts = [
+    "Are my medicines safe together?",
     "What meds do I take today?",
     "Which medicines are low in stock?",
     "Any upcoming doctor appointments?",
-    "Safety tips for medicine storage",
   ];
 
   const scrollToBottom = () => {
@@ -64,20 +72,24 @@ export default function AIChatDrawer() {
       // Prepare user context payload
       const userContext = {
         userName: user?.name,
+        leaderName,
         medicines: medicines.map((m) => ({
           name: m.name,
           dosage: m.dosage,
-          stockCount: m.stockCount,
-          instructions: m.instructions,
+          quantity: m.quantity,
+          instructions: m.mealInstruction,
         })),
-        reminders: todayReminders.map((r) => ({
-          medicineName: r.medicineName,
-          time: r.time,
-          status: r.status,
-        })),
+        reminders: todayReminders.map((r) => {
+          const med = medicines.find((m) => m.id === r.medicineId);
+          return {
+            medicineName: med?.name || r.medicineId,
+            time: r.time,
+            status: r.status,
+          };
+        }),
         appointments: appointments.map((a) => ({
-          title: a.title,
           doctorName: a.doctorName,
+          specialty: a.specialty,
           date: a.date,
           time: a.time,
         })),
@@ -93,7 +105,29 @@ export default function AIChatDrawer() {
       });
 
       const data = await res.json();
-      const replyContent = data.reply || data.error || 'Unable to fetch response.';
+      let replyContent = data.reply || data.error || 'Unable to fetch response.';
+
+      // Parse and execute DOSE LOGGING action tag if present
+      const actionMatch = replyContent.match(/\[ACTION:MARK_TAKEN:(.+?)\]/i) || queryText.match(/(?:took|taken|marked)\s+(.+?)(?:dose|pill|$)/i);
+      if (actionMatch && actionMatch[1]) {
+        const medQuery = actionMatch[1].trim();
+        replyContent = replyContent.replace(/\[ACTION:MARK_TAKEN:.+?\]/gi, '').trim();
+
+        const targetReminder = todayReminders.find((r) => {
+          const med = medicines.find((m) => m.id === r.medicineId);
+          const medName = med?.name || r.medicineId;
+          return medName.toLowerCase().includes(medQuery.toLowerCase()) || medQuery.toLowerCase().includes(medName.toLowerCase());
+        }) || todayReminders.find((r) => r.status === 'upcoming');
+
+        if (targetReminder) {
+          await markDose(targetReminder.id, 'taken');
+          const med = medicines.find((m) => m.id === targetReminder.medicineId);
+          toast({
+            title: '✅ Dose Marked Taken via Chat',
+            description: `Updated schedule: ${med?.name || targetReminder.medicineId} marked as TAKEN!`,
+          });
+        }
+      }
 
       const botMsg: Message = {
         id: (Date.now() + 1).toString(),
@@ -103,6 +137,16 @@ export default function AIChatDrawer() {
       };
 
       setMessages((prev) => [...prev, botMsg]);
+
+      // If refill intent detected in prompt or response, automatically trigger SMS message to Leader
+      if (/refill|restock|order\s+more/i.test(queryText) || /Refill Alert/i.test(replyContent)) {
+        sendRefillNotificationToLeader(leaderName, queryText);
+        triggerAutoSMS(leaderName, leaderPhone, queryText);
+        toast({
+          title: '💬 Auto SMS Messaging Dispatched',
+          description: `Opened SMS message to Household Leader (${leaderName}) for restock.`,
+        });
+      }
     } catch (err: any) {
       setMessages((prev) => [
         ...prev,
@@ -215,7 +259,7 @@ export default function AIChatDrawer() {
                       : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-none'
                   }`}
                 >
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  <FormattedMessage content={msg.content} role={msg.role} leaderName={leaderName} leaderPhone={leaderPhone} />
                   <div
                     className={`mt-1 text-[10px] text-right ${
                       msg.role === 'user' ? 'text-teal-200' : 'text-slate-400'
