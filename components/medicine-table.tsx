@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarPlus, Check, Pencil, Trash2, X } from 'lucide-react';
+import { Check, Pencil, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Medicine, useAppStore } from '@/lib/app-store';
@@ -38,11 +38,12 @@ export default function MedicineTable({ medicines, showDelete = false }: Medicin
 
   return (
     <div className="space-y-3 md:rounded-lg md:border md:border-slate-200 md:bg-white md:overflow-hidden">
+      {/* Mobile Card View */}
       <div className="space-y-3 md:hidden">
         {medicines.map((medicine) => {
           const member = getMember(medicine.assignedToId);
           const daysLeft = daysUntil(medicine.expiryDate);
-          const urgent = daysLeft <= 30 || medicine.quantity <= medicine.lowStockAt;
+          const urgent = (daysLeft >= 0 && daysLeft <= 30) || medicine.quantity <= medicine.lowStockAt;
           const isMine = medicine.assignedToId === myMember?.id;
           const canModify = user.accessLevel !== 'Standard' || isMine;
 
@@ -52,7 +53,7 @@ export default function MedicineTable({ medicines, showDelete = false }: Medicin
                 <MedicineAvatar name={medicine.name} type={medicine.type} image={medicine.image} showColorBadge={true} size="lg" />
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate font-semibold text-slate-900">{medicine.name}</h3>
-                  <p className="text-xs text-slate-500">{medicine.category} - {medicine.use}</p>
+                  <p className="text-xs text-slate-500">{medicine.category}{medicine.use ? ` - ${medicine.use}` : ''}</p>
                   <p className="mt-1 text-sm text-slate-600">{member ? `${member.name} (${member.role})` : 'Unassigned'}</p>
                 </div>
               </div>
@@ -76,13 +77,12 @@ export default function MedicineTable({ medicines, showDelete = false }: Medicin
                 </div>
                 <div className="rounded-lg bg-slate-50 p-3">
                   <p className="text-xs font-medium text-slate-500">Expiry</p>
-                  <p className={`mt-1 font-semibold ${urgent ? 'text-orange-600' : 'text-slate-900'}`}>{medicine.expiryDate}</p>
+                  <p className={`mt-1 font-semibold ${urgent ? 'text-orange-600' : 'text-slate-900'}`}>{medicine.expiryDate || 'No date set'}</p>
                   <p className="mt-1 text-xs text-slate-500">{formatExpiryStatus(medicine.expiryDate)}</p>
                 </div>
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-2">
-
                 {editingId === medicine.id ? (
                   <>
                     <Button onClick={() => saveEdit(medicine)} variant="outline" size="sm" className="text-green-700" aria-label={`Save ${medicine.name}`}>
@@ -120,74 +120,85 @@ export default function MedicineTable({ medicines, showDelete = false }: Medicin
         })}
       </div>
 
-      <div className="hidden md:block">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              <th className="text-left px-6 py-3 font-semibold text-slate-900">Medicine</th>
-              <th className="text-left px-6 py-3 font-semibold text-slate-900">Assigned To</th>
-              <th className="text-left px-6 py-3 font-semibold text-slate-900">Quantity</th>
-              <th className="text-left px-6 py-3 font-semibold text-slate-900">Expiry Date</th>
-              <th className="text-center px-6 py-3 font-semibold text-slate-900">Action</th>
+      {/* Desktop Table View */}
+      <div className="hidden overflow-x-auto rounded-lg border border-slate-200 md:block">
+        <table className="w-full text-left text-sm text-slate-700">
+          <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 border-b border-slate-200">
+            <tr>
+              <th className="px-6 py-3 font-semibold">Medicine</th>
+              <th className="px-6 py-3 font-semibold">Assigned To</th>
+              <th className="px-6 py-3 font-semibold">Stock</th>
+              <th className="px-6 py-3 font-semibold">Expiry</th>
+              <th className="px-6 py-3 font-semibold text-right">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-200 bg-white">
             {medicines.map((medicine) => {
               const member = getMember(medicine.assignedToId);
               const daysLeft = daysUntil(medicine.expiryDate);
-              const urgent = daysLeft <= 30 || medicine.quantity <= medicine.lowStockAt;
+              const urgent = (daysLeft >= 0 && daysLeft <= 30) || medicine.quantity <= medicine.lowStockAt;
               const isMine = medicine.assignedToId === myMember?.id;
               const canModify = user.accessLevel !== 'Standard' || isMine;
 
               return (
-                <tr key={medicine.id} className="border-b border-slate-200 hover:bg-slate-50 transition">
+                <tr key={medicine.id} className="hover:bg-slate-50/80 transition">
                   <td className="px-4 py-4 md:px-6">
                     <div className="flex items-center gap-3">
                       <MedicineAvatar name={medicine.name} type={medicine.type} image={medicine.image} showColorBadge={true} size="md" />
                       <div>
-                        <p className="font-medium text-slate-900">{medicine.name}</p>
-                        <p className="text-xs text-slate-500">{medicine.category} - {medicine.use}</p>
+                        <p className="font-semibold text-slate-900">{medicine.name}</p>
+                        <p className="text-xs text-slate-500">{medicine.strength || medicine.category}{medicine.use ? ` • ${medicine.use}` : ''}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-4 md:px-6 text-slate-600">{member ? `${member.name} (${member.role})` : 'Unassigned'}</td>
-                  <td className="px-4 py-4 md:px-6 text-slate-600">
-                    {editingId === medicine.id ? (
-                      <input
-                        type="number"
-                        min={0}
-                        value={quantityDraft}
-                        onChange={(event) => setQuantityDraft(event.target.value)}
-                        className="w-24 rounded border border-slate-300 px-2 py-1 text-sm"
-                        aria-label={`Quantity for ${medicine.name}`}
-                      />
+                  <td className="px-4 py-4 md:px-6">
+                    {member ? (
+                      <div className="flex items-center gap-2">
+                        <img src={member.image} alt={member.name} className="w-6 h-6 rounded-full object-cover" />
+                        <span className="text-sm text-slate-700 font-medium">{member.name}</span>
+                      </div>
                     ) : (
-                      <>
-                        {medicine.quantity} {medicine.unit}
-                      </>
+                      <span className="text-sm text-slate-400">Unassigned</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-4 md:px-6">
+                    {editingId === medicine.id ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          value={quantityDraft}
+                          onChange={(e) => setQuantityDraft(e.target.value)}
+                          className="w-16 rounded border border-slate-300 px-2 py-1 text-sm"
+                          autoFocus
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-900">{medicine.quantity}</span>
+                        <span className="text-slate-500">{medicine.unit}</span>
+                      </div>
                     )}
                     {medicine.quantity <= medicine.lowStockAt && <p className="text-xs text-red-600 mt-1">Low stock</p>}
                   </td>
                   <td className="px-4 py-4 md:px-6">
-                    <span className={urgent ? 'text-orange-600' : 'text-slate-600'}>{medicine.expiryDate}</span>
+                    <span className={urgent ? 'text-orange-600' : 'text-slate-600'}>{medicine.expiryDate || 'No date set'}</span>
                     <p className="text-xs text-slate-500 mt-1">{formatExpiryStatus(medicine.expiryDate)}</p>
                   </td>
-                  <td className="px-4 py-4 md:px-6">
-                    <div className="flex items-center justify-center gap-2">
-
+                  <td className="px-4 py-4 md:px-6 text-right">
+                    <div className="flex items-center justify-end gap-2">
                       {editingId === medicine.id ? (
                         <>
-                          <Button onClick={() => saveEdit(medicine)} variant="outline" size="icon-sm" className="text-green-700" aria-label={`Save ${medicine.name}`}>
-                            <Check className="w-4 h-4" />
+                          <Button onClick={() => saveEdit(medicine)} variant="outline" size="sm" className="text-green-700" aria-label={`Save ${medicine.name}`}>
+                            <Check className="h-4 w-4" />
                           </Button>
-                          <Button onClick={() => setEditingId(null)} variant="ghost" size="icon-sm" aria-label={`Cancel editing ${medicine.name}`}>
-                            <X className="w-4 h-4" />
+                          <Button onClick={() => setEditingId(null)} variant="ghost" size="sm" aria-label={`Cancel editing ${medicine.name}`}>
+                            <X className="h-4 w-4" />
                           </Button>
                         </>
                       ) : (
                         canModify && (
-                          <Button onClick={() => startEdit(medicine)} variant="ghost" size="icon-sm" aria-label={`Edit ${medicine.name}`}>
-                            <Pencil className="w-4 h-4" />
+                          <Button onClick={() => startEdit(medicine)} variant="ghost" size="sm" aria-label={`Edit ${medicine.name}`}>
+                            <Pencil className="h-4 w-4" />
                           </Button>
                         )
                       )}
@@ -195,11 +206,11 @@ export default function MedicineTable({ medicines, showDelete = false }: Medicin
                         <Button
                           onClick={() => deleteMedicine(medicine.id)}
                           variant="ghost"
-                          size="icon-sm"
+                          size="sm"
                           className="text-red-600"
                           aria-label={`Delete ${medicine.name}`}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
                     </div>

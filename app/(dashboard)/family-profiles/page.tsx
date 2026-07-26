@@ -167,7 +167,7 @@ export default function FamilyProfilePage() {
   const handleAddMedicine = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedMember?.id || !medicineForm.name.trim()) return;
-    if (!isFutureDate(medicineForm.expiryDate)) {
+    if (medicineForm.expiryDate && !isFutureDate(medicineForm.expiryDate)) {
       setMedicineFormError('Choose an expiry date after today.');
       return;
     }
@@ -791,8 +791,8 @@ export default function FamilyProfilePage() {
               <MedicineField label="Type" value={medicineForm.type} onChange={(value) => setMedicineForm({ ...medicineForm, type: value })} />
               <MedicineField label="Quantity" type="number" value={String(medicineForm.quantity)} onChange={(value) => setMedicineForm({ ...medicineForm, quantity: Number(value) })} />
               <MedicineField label="Unit" value={medicineForm.unit} onChange={(value) => setMedicineForm({ ...medicineForm, unit: value })} />
-              <MedicineField label="Expiry date" type="date" min={minExpiryDate} value={medicineForm.expiryDate} onChange={(value) => setMedicineForm({ ...medicineForm, expiryDate: value })} required />
-              <MedicineField label="Simple use" value={medicineForm.use} onChange={(value) => setMedicineForm({ ...medicineForm, use: value })} placeholder="Blood pressure, fever, etc." required />
+              <MedicineField label="Expiry date (optional)" type="date" min={minExpiryDate} value={medicineForm.expiryDate} onChange={(value) => setMedicineForm({ ...medicineForm, expiryDate: value })} />
+              <MedicineField label="Simple use (optional)" value={medicineForm.use} onChange={(value) => setMedicineForm({ ...medicineForm, use: value })} placeholder="Blood pressure, fever, etc." />
               <MedicineField label="Dosage" value={medicineForm.dosage} onChange={(value) => setMedicineForm({ ...medicineForm, dosage: value })} />
               <MedicineField label="Meal instruction" value={medicineForm.mealInstruction} onChange={(value) => setMedicineForm({ ...medicineForm, mealInstruction: value })} />
               <MedicineField label="Reminder times" value={medicineForm.reminderTimes} onChange={(value) => setMedicineForm({ ...medicineForm, reminderTimes: value })} placeholder="08:00, 20:00" />
@@ -818,7 +818,7 @@ function getTomorrowDate() {
 }
 
 function isFutureDate(date: string) {
-  if (!date) return false;
+  if (!date) return true;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const target = new Date(`${date}T00:00:00`);

@@ -36,7 +36,7 @@ export default function InventoryPage() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!isFutureDate(form.expiryDate)) {
+    if (form.expiryDate && !isFutureDate(form.expiryDate)) {
       setFormError('Choose an expiry date after today.');
       return;
     }
@@ -150,10 +150,10 @@ export default function InventoryPage() {
                 {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
               </select>
             </label>
-            <Field label="Expiry date" type="date" min={minExpiryDate} value={form.expiryDate} onChange={(value) => setForm({ ...form, expiryDate: value })} required />
+            <Field label="Expiry date (optional)" type="date" min={minExpiryDate} value={form.expiryDate} onChange={(value) => setForm({ ...form, expiryDate: value })} />
             <Field label="Manufacture date" type="date" value={form.manufactureDate} onChange={(value) => setForm({ ...form, manufactureDate: value })} />
             <Field label="Pharmacy / pharma" value={form.pharmaName} onChange={(value) => setForm({ ...form, pharmaName: value })} placeholder="Nil if unknown" />
-            <Field label="Simple use" value={form.use} onChange={(value) => setForm({ ...form, use: value })} required />
+            <Field label="Simple use (optional)" value={form.use} onChange={(value) => setForm({ ...form, use: value })} />
             <Field label="Dosage" value={form.dosage} onChange={(value) => setForm({ ...form, dosage: value })} />
             <Field label="Meal instruction" value={form.mealInstruction} onChange={(value) => setForm({ ...form, mealInstruction: value })} />
             <Field label="Reminder times" value={form.reminderTimes} onChange={(value) => setForm({ ...form, reminderTimes: value })} placeholder="08:00, 20:00" />
@@ -207,7 +207,7 @@ function getTomorrowDate() {
 }
 
 function isFutureDate(date: string) {
-  if (!date) return false;
+  if (!date) return true;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const target = new Date(`${date}T00:00:00`);
