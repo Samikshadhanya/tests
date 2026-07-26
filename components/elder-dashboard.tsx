@@ -3,6 +3,8 @@
 import React from 'react';
 import { useAppStore } from '@/lib/app-store';
 import { CheckCircle2, XCircle, PhoneCall, HeartPulse } from 'lucide-react';
+import { MedicineAvatar } from '@/components/medicine-avatar';
+import { getPillColor } from '@/lib/pill-color';
 
 export default function ElderDashboard() {
   const { user, members, medicines, todayReminders, markDose, caregivers } = useAppStore();
@@ -45,12 +47,19 @@ export default function ElderDashboard() {
           {upcomingReminders.map(reminder => {
             const medicine = medicines.find(m => m.id === reminder.medicineId);
             if (!medicine) return null;
+            const color = getPillColor(medicine.name);
             
             return (
-              <div key={reminder.id} className="bg-white border-4 border-slate-300 rounded-3xl p-6 shadow-xl space-y-6">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-4xl font-black text-slate-900">{medicine.name}</h3>
+              <div key={reminder.id} className={`bg-white border-4 ${color.cardBorder} rounded-3xl p-6 shadow-xl space-y-6 transition-all`}>
+                <div className="flex items-center gap-5">
+                  <MedicineAvatar name={medicine.name} type={medicine.type} image={medicine.image} size="xl" showColorBadge={true} />
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-4xl font-black text-slate-900">{medicine.name}</h3>
+                      <span className={`text-sm font-extrabold px-3 py-1 rounded-xl border ${color.badgeBg} ${color.badgeText} ${color.badgeBorder}`}>
+                        🔴 Color Code: {color.name}
+                      </span>
+                    </div>
                     <p className="text-2xl font-bold text-teal-700 mt-2">Time: {reminder.time}</p>
                     <p className="text-xl font-medium text-slate-600 mt-1">{medicine.dosage} - {medicine.mealInstruction}</p>
                   </div>
@@ -85,10 +94,13 @@ export default function ElderDashboard() {
             {pastReminders.map(reminder => {
               const medicine = medicines.find(m => m.id === reminder.medicineId);
               return (
-                <div key={reminder.id} className="bg-slate-100 rounded-xl p-4 flex justify-between items-center opacity-70">
-                  <div>
-                    <p className="text-xl font-bold text-slate-700">{medicine?.name}</p>
-                    <p className="text-slate-500">{reminder.time}</p>
+                <div key={reminder.id} className="bg-slate-100 rounded-xl p-4 flex justify-between items-center opacity-80">
+                  <div className="flex items-center gap-3">
+                    {medicine && <MedicineAvatar name={medicine.name} type={medicine.type} image={medicine.image} size="md" showColorBadge={true} />}
+                    <div>
+                      <p className="text-xl font-bold text-slate-700">{medicine?.name}</p>
+                      <p className="text-slate-500">{reminder.time}</p>
+                    </div>
                   </div>
                   <span className={`text-lg font-bold px-4 py-2 rounded-lg ${reminder.status === 'taken' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
                     {reminder.status === 'taken' ? 'Taken' : 'Skipped'}

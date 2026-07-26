@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Medicine, useAppStore } from '@/lib/app-store';
 import { daysUntil, formatExpiryStatus } from '@/lib/date-utils';
+import { MedicineAvatar } from '@/components/medicine-avatar';
 
 interface MedicineTableProps {
   medicines: Medicine[];
@@ -48,7 +49,7 @@ export default function MedicineTable({ medicines, showDelete = false }: Medicin
           return (
             <article key={medicine.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-start gap-3">
-                <img src={medicine.image} alt={medicine.name} className="h-12 w-12 rounded-lg object-cover" />
+                <MedicineAvatar name={medicine.name} type={medicine.type} image={medicine.image} showColorBadge={true} size="lg" />
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate font-semibold text-slate-900">{medicine.name}</h3>
                   <p className="text-xs text-slate-500">{medicine.category} - {medicine.use}</p>
@@ -142,7 +143,7 @@ export default function MedicineTable({ medicines, showDelete = false }: Medicin
                 <tr key={medicine.id} className="border-b border-slate-200 hover:bg-slate-50 transition">
                   <td className="px-4 py-4 md:px-6">
                     <div className="flex items-center gap-3">
-                      <img src={medicine.image} alt={medicine.name} className="w-10 h-10 rounded object-cover" />
+                      <MedicineAvatar name={medicine.name} type={medicine.type} image={medicine.image} showColorBadge={true} size="md" />
                       <div>
                         <p className="font-medium text-slate-900">{medicine.name}</p>
                         <p className="text-xs text-slate-500">{medicine.category} - {medicine.use}</p>

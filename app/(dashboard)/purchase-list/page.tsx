@@ -4,6 +4,8 @@ import { ChevronLeft, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/lib/app-store';
 import { daysUntil } from '@/lib/date-utils';
+import { MedicineAvatar } from '@/components/medicine-avatar';
+import { getPillColor } from '@/lib/pill-color';
 
 export default function PurchaseListPage() {
   const { purchaseList, getMember, updateMedicine } = useAppStore();
@@ -26,17 +28,21 @@ export default function PurchaseListPage() {
             <div className="divide-y divide-slate-200">
               {purchaseList.map((medicine) => {
                 const member = getMember(medicine.assignedToId);
+                const color = getPillColor(medicine.name);
                 return (
-                    <div key={medicine.id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
+                  <div key={medicine.id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
                     <div className="flex items-center gap-4">
-                      <img src={medicine.image} alt={medicine.name} className="w-12 h-12 rounded object-cover" />
+                      <MedicineAvatar name={medicine.name} type={medicine.type} image={medicine.image} showColorBadge={true} size="lg" />
                       <div>
-                        <p className="font-semibold text-slate-900">
-                          {medicine.name}
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-slate-900">{medicine.name}</p>
+                          <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold border ${color.badgeBg} ${color.badgeText} ${color.badgeBorder}`}>
+                            Pill Color: {color.name}
+                          </span>
                           {daysUntil(medicine.expiryDate) < 0 && (
-                            <span className="ml-2 text-xs font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">(Expired)</span>
+                            <span className="text-xs font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">(Expired)</span>
                           )}
-                        </p>
+                        </div>
                         <p className="text-sm text-slate-600">{member?.name} - only {medicine.quantity} {medicine.unit} left</p>
                         <p className="text-xs text-slate-500">Reorder 2 days before expected shortage.</p>
                       </div>
