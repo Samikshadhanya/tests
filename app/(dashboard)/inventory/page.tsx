@@ -166,7 +166,7 @@ export default function InventoryPage() {
           </form>
         )}
 
-        <MedicineTable medicines={medicines.filter(m => !(daysUntil(m.expiryDate) < 0 && m.quantity === 0))} showDelete />
+        <MedicineTable medicines={medicines} showDelete />
       </div>
     </>
   );

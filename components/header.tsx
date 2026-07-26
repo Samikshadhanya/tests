@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, Bell, CalendarClock, ChevronDown, Home, LogOut, Menu, PackageX } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarClock, ChevronDown, Home, LogOut, Menu, PackageX, X } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/app-store';
@@ -12,7 +12,7 @@ interface HeaderProps {
 
 export default function Header({ onMenuClick }: HeaderProps) {
   const router = useRouter();
-  const { user, signOut, todayReminders, lowStockMedicines, expiringMedicines, switchHousehold, addHousehold } = useAppStore();
+  const { user, signOut, todayReminders, lowStockMedicines, expiringMedicines, expiredReminders, removeExpiredReminder, switchHousehold, addHousehold } = useAppStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
   const [showHouseholdMenu, setShowHouseholdMenu] = useState(false);
@@ -21,12 +21,21 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const [householdError, setHouseholdError] = useState('');
 
   const notifications = [
+    ...expiredReminders.map((rem) => ({
+      id: rem.id,
+      type: 'alert',
+      icon: CalendarClock,
+      title: 'Expired medicine',
+      message: `${rem.medicineName} expired on ${rem.expiryDate}.`,
+      onRemove: () => removeExpiredReminder(rem.id),
+    })),
     ...todayReminders.filter((reminder) => reminder.status === 'missed').map((reminder) => ({
       id: `missed-${reminder.id}`,
       type: 'alert',
       icon: AlertTriangle,
       title: 'Missed dose',
       message: `A ${reminder.time} reminder was marked missed.`,
+      onRemove: undefined,
     })),
     ...lowStockMedicines.map((medicine) => ({
       id: `stock-${medicine.id}`,
@@ -34,17 +43,16 @@ export default function Header({ onMenuClick }: HeaderProps) {
       icon: PackageX,
       title: 'Low stock',
       message: `${medicine.name} has ${medicine.quantity} ${medicine.unit} left.`,
+      onRemove: undefined,
     })),
-    ...expiringMedicines.map((medicine) => {
-      const isExpired = daysUntil(medicine.expiryDate) < 0;
-      return {
-        id: `expiry-${medicine.id}`,
-        type: isExpired ? 'alert' : 'info',
-        icon: CalendarClock,
-        title: isExpired ? 'Expired medicine' : 'Expiring soon',
-        message: `${medicine.name} ${isExpired ? `expired on ${medicine.expiryDate}. Please remove it.` : `expires on ${medicine.expiryDate}.`}`,
-      };
-    }),
+    ...expiringMedicines.map((medicine) => ({
+      id: `expiry-${medicine.id}`,
+      type: 'info',
+      icon: CalendarClock,
+      title: 'Expiring soon',
+      message: `${medicine.name} expires on ${medicine.expiryDate}.`,
+      onRemove: undefined,
+    })),
   ];
 
   return (
@@ -152,20 +160,33 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 {notifications.map((notif) => {
                   const Icon = notif.icon;
                   return (
-                  <div key={notif.id} className="p-4 border-b border-slate-50 hover:bg-slate-50 transition cursor-pointer">
-                    <div className="flex gap-3">
-                      <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${
-                        notif.type === 'alert' ? 'bg-red-500' : notif.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
-                      }`} />
-                      <div>
-                        <p className="text-sm font-medium text-slate-900 flex items-center gap-1.5">
-                          <Icon className="h-3.5 w-3.5" />
-                          {notif.title}
-                        </p>
-                        <p className="text-sm text-slate-600 mt-0.5">{notif.message}</p>
+                    <div key={notif.id} className="p-3.5 border-b border-slate-50 hover:bg-slate-50 transition flex items-start justify-between gap-2">
+                      <div className="flex gap-2.5 min-w-0 flex-1">
+                        <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${
+                          notif.type === 'alert' ? 'bg-red-500' : notif.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
+                        }`} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-slate-900 flex items-center gap-1.5">
+                            <Icon className="h-3.5 w-3.5 shrink-0 text-slate-600" />
+                            <span>{notif.title}</span>
+                          </p>
+                          <p className="text-xs text-slate-600 mt-0.5">{notif.message}</p>
+                        </div>
                       </div>
+                      {notif.onRemove && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            notif.onRemove();
+                          }}
+                          className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-slate-100 transition shrink-0"
+                          title="Remove notification"
+                          aria-label="Remove notification"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
-                  </div>
                   );
                 })}
               </div>

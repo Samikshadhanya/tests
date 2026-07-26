@@ -35,11 +35,12 @@ RULES:
 7. DRUG INTERACTIONS & SAFETY CHECK: When asked about drug interactions or taking medications together, thoroughly evaluate all logged medicines. Highlight any potential interactions, food/timing precautions, or side effects. If there are any risks or uncertainties, explicitly instruct the user to contact their doctor or pharmacist for official cross-reference before taking them.`;
 
     if (userContext) {
-      const { medicines, reminders, appointments, userName, leaderName } = userContext;
+      const { medicines, reminders, appointments, userName, leaderName, emergencyContact } = userContext;
       
       systemContext += `\n\n--- CURRENT USER CONTEXT ---`;
       if (userName) systemContext += `\nUser Name: ${userName}`;
       if (leaderName) systemContext += `\nHousehold Leader: ${leaderName}`;
+      if (emergencyContact?.name) systemContext += `\nPersonal Emergency Contact: ${emergencyContact.name} (${emergencyContact.phone})`;
 
       if (medicines && Array.isArray(medicines) && medicines.length > 0) {
         systemContext += `\n\nMEDICINES INVENTORY (${medicines.length} total):\n` +

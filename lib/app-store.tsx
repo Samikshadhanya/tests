@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { addDoc, collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -14,7 +14,7 @@ import {
   GoogleAuthProvider,
 } from 'firebase/auth';
 import { initialState, medicineImage, createDemoHouseholdState } from '@/lib/initial-data';
-import type { AppState, AppUser, Caregiver, FamilyMember, Household, Medicine, MedicineInput, MemberInput, ReminderInput, ReminderLog, Appointment, AppointmentInput } from '@/lib/types';
+import type { AppState, AppUser, Caregiver, ExpiredMedicineReminder, FamilyMember, Household, Medicine, MedicineInput, MemberInput, ReminderInput, ReminderLog, Appointment, AppointmentInput } from '@/lib/types';
 import { auth, db, googleProvider } from '@/lib/firebase';
 import { daysUntil } from '@/lib/date-utils';
 import { createHousehold, fetchUserProfile, setActiveHousehold, generateInviteCode as generateInviteCodeRequest, joinHousehold as joinHouseholdRequest } from '@/services/householdService';
@@ -23,7 +23,7 @@ import { createReminder, deleteReminder as deleteReminderRequest, fetchReminders
 import { createCaregiver, deleteCaregiver as deleteCaregiverRequest, fetchCaregivers } from '@/services/caregiverService';
 import { createAppointment, deleteAppointment as deleteAppointmentRequest, fetchAppointments, updateAppointment as updateAppointmentRequest } from '@/services/appointmentService';
 
-export type { AppState, AppUser, Caregiver, FamilyMember, Medicine, MedicineInput, MemberInput, ReminderInput, ReminderLog, Appointment, AppointmentInput };
+export type { AppState, AppUser, Caregiver, ExpiredMedicineReminder, FamilyMember, Medicine, MedicineInput, MemberInput, ReminderInput, ReminderLog, Appointment, AppointmentInput };
 
 type AppStore = AppState & {
   loading: boolean;
@@ -57,6 +57,7 @@ type AppStore = AppState & {
   toggleElderMode: (enabled: boolean) => Promise<void>;
   toggleCaregiverOptIn: (memberId: string) => Promise<void>;
   updateEmergencyContact: (contact: { name: string; phone: string } | null) => Promise<void>;
+  removeExpiredReminder: (id: string) => void;
 };
 
 const AppContext = createContext<AppStore | null>(null);
@@ -73,23 +74,36 @@ const userFromProfile = (
 ): AppUser => {
   const myMember = familyMembers.find(m => m.uid === profile.uid);
   const isElderly = myMember?.accessLevel === 'Elderly';
+
+  let emergencyContact = profile.emergencyContact || (household as any)?.emergencyContact || (myMember as any)?.emergencyContact;
+  if (typeof window !== 'undefined') {
+    if (emergencyContact) {
+      localStorage.setItem('emergencyContact', JSON.stringify(emergencyContact));
+    } else {
+      const saved = localStorage.getItem('emergencyContact');
+      if (saved) {
+        try { emergencyContact = JSON.parse(saved); } catch (e) {}
+      }
+    }
+  }
+
   return {
-  uid: profile.uid,
-  name: profile.name || profile.email.split('@')[0] || 'User',
-  email: profile.email,
-  photoURL: profile.photoURL,
-  role: profile.role || 'Host',
-  authProvider: profile.authProvider || 'google',
-  household: household?.name || 'My Family',
-  householdId: household?.id || profile.activeHouseholdId || profile.householdIds[0],
-  households: households.length ? households.map((item) => item.name) : household ? [household.name] : [],
-  householdIds: households.length ? households.map((item) => item.id) : profile.householdIds,
-  calendarConnected: profile.calendarConnected,
-  elderMode: isElderly ? true : profile.elderMode,
-  caregiverForIds: profile.caregiverForIds,
-  accessLevel: myMember?.accessLevel || 'Leader', // Default creator/host to leader
-  emergencyContact: profile.emergencyContact,
-};
+    uid: profile.uid,
+    name: profile.name || profile.email.split('@')[0] || 'User',
+    email: profile.email,
+    photoURL: profile.photoURL,
+    role: profile.role || 'Host',
+    authProvider: profile.authProvider || 'google',
+    household: household?.name || 'My Family',
+    householdId: household?.id || profile.activeHouseholdId || profile.householdIds[0],
+    households: households.length ? households.map((item) => item.name) : household ? [household.name] : [],
+    householdIds: households.length ? households.map((item) => item.id) : profile.householdIds,
+    calendarConnected: profile.calendarConnected,
+    elderMode: isElderly ? true : profile.elderMode,
+    caregiverForIds: profile.caregiverForIds,
+    accessLevel: myMember?.accessLevel || 'Leader', // Default creator/host to leader
+    emergencyContact: emergencyContact,
+  };
 };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -216,6 +230,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && !state.user.emergencyContact) {
+      const saved = localStorage.getItem('emergencyContact');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.name && parsed.phone) {
+            setState((current) => {
+              if (current.user.emergencyContact) return current;
+              return {
+                ...current,
+                user: { ...current.user, emergencyContact: parsed },
+              };
+            });
+          }
+        } catch (e) {}
+      }
+    }
+  }, [state.user.emergencyContact]);
+
+  useEffect(() => {
     if (loading || !state.user.uid || !state.members.length) return;
     const uid = state.user.uid;
     import('@/lib/notifications').then(({ syncLocalNotifications }) => {
@@ -237,7 +271,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AppStore>(() => {
     const LOW_STOCK_MIN = 5;
     const lowStockMedicines = state.medicines.filter((medicine) => medicine.quantity <= Math.max(medicine.lowStockAt, LOW_STOCK_MIN));
-    const expiringMedicines = state.medicines.filter((medicine) => daysUntil(medicine.expiryDate) <= 30);
+    const expiringMedicines = state.medicines.filter((medicine) => {
+      const days = daysUntil(medicine.expiryDate);
+      return days >= 0 && days <= 30;
+    });
     const duplicateMedicines = state.medicines.filter((medicine, index, all) =>
       all.findIndex((item) => item.name.toLowerCase() === medicine.name.toLowerCase()) !== index,
     );
@@ -685,19 +722,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setState((current) => ({ ...current, user: { ...current.user, caregiverForIds: newIds } }));
       },
       updateEmergencyContact: async (contact: { name: string; phone: string } | null) => {
-        if (contact) {
-          localStorage.setItem('emergencyContact', JSON.stringify(contact));
-        } else {
-          localStorage.removeItem('emergencyContact');
+        if (typeof window !== 'undefined') {
+          if (contact) {
+            localStorage.setItem('emergencyContact', JSON.stringify(contact));
+          } else {
+            localStorage.removeItem('emergencyContact');
+          }
         }
 
-        if (state.user.uid && !isLocalSession) {
-          await updateDoc(doc(db, 'users', state.user.uid), { emergencyContact: contact });
+        const targetUid = auth.currentUser?.uid || (state.user.uid && !state.user.uid.startsWith('local-') ? state.user.uid : null);
+
+        if (targetUid) {
+          try {
+            await setDoc(doc(db, 'users', targetUid), { emergencyContact: contact }, { merge: true });
+          } catch (e) {
+            console.error('Failed to sync emergencyContact to Firestore user doc:', e);
+          }
+
+          if (state.user.householdId && !state.user.householdId.startsWith('local-')) {
+            try {
+              await updateDoc(doc(db, 'households', state.user.householdId), { emergencyContact: contact });
+            } catch (e) {}
+          }
+
+          const myMember = state.members.find(m => m.uid === targetUid || m.name.toLowerCase() === state.user.name.toLowerCase());
+          if (myMember?.id && !myMember.id.startsWith('local-')) {
+            try {
+              await updateDoc(doc(db, 'members', myMember.id), { emergencyContact: contact });
+            } catch (e) {}
+          }
         }
 
         setState((current) => ({
           ...current,
           user: { ...current.user, emergencyContact: contact || undefined }
+        }));
+      },
+      removeExpiredReminder: (id: string) => {
+        setState((current) => ({
+          ...current,
+          expiredReminders: current.expiredReminders.filter((rem) => rem.id !== id),
         }));
       },
     };
@@ -770,16 +834,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [state.user.authProvider, state.user.householdId]);
 
   useEffect(() => {
-    if (loading || !state.user.uid) return;
-    
-    // Auto-zero quantity for expired medicines
-    const expiredMedicines = state.medicines.filter((m) => daysUntil(m.expiryDate) < 0 && m.quantity > 0);
-    if (expiredMedicines.length > 0 && storeRef.current) {
-      expiredMedicines.forEach(m => {
-        storeRef.current!.updateMedicine(m.id, { quantity: 0 }).catch(console.error);
+    if (loading) return;
+
+    const expiredMedicines = state.medicines.filter((m) => daysUntil(m.expiryDate) < 0);
+    if (expiredMedicines.length === 0) return;
+
+    const newReminders: ExpiredMedicineReminder[] = [];
+    expiredMedicines.forEach((m) => {
+      const alreadyExists = state.expiredReminders.some(
+        (r) => r.medicineId === m.id || (r.medicineName === m.name && r.expiryDate === m.expiryDate)
+      );
+      if (!alreadyExists) {
+        newReminders.push({
+          id: `expired-${m.id}-${Date.now()}`,
+          medicineId: m.id,
+          medicineName: m.name,
+          expiryDate: m.expiryDate,
+          assignedToId: m.assignedToId,
+          removedAt: new Date().toISOString(),
+        });
+      }
+    });
+
+    if (newReminders.length > 0) {
+      setState((current) => ({
+        ...current,
+        expiredReminders: [...current.expiredReminders, ...newReminders],
+      }));
+    }
+
+    if (storeRef.current) {
+      expiredMedicines.forEach((m) => {
+        storeRef.current!.deleteMedicine(m.id).catch(console.error);
       });
     }
-  }, [state.medicines, loading, state.user.uid]);
+  }, [state.medicines, state.expiredReminders, loading]);
 
   if (loading) {
     return (

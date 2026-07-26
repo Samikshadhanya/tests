@@ -22,9 +22,7 @@ export default function EmergencyPage() {
   })();
 
   useEffect(() => {
-    if (!emergencyContact && !isEditingContact) {
-      setIsEditingContact(true);
-    } else if (emergencyContact) {
+    if (emergencyContact) {
       setContactForm(emergencyContact);
     }
   }, [emergencyContact]);

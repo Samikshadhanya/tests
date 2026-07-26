@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/lib/app-store';
 
 export default function RemindersPage() {
-  const { todayReminders, medicines, members, user, getMember, markDose, deleteReminder, addReminder, expiringMedicines, lowStockMedicines } = useAppStore();
+  const { todayReminders, medicines, members, user, getMember, markDose, deleteReminder, addReminder, expiringMedicines, lowStockMedicines, expiredReminders, removeExpiredReminder } = useAppStore();
   // Find the logged-in user's own member profile
   const myMember = members.find(m => m.uid === user.uid);
   const isElderly = user.elderMode || user.accessLevel === 'Elderly';
@@ -206,19 +206,40 @@ export default function RemindersPage() {
                 <CalendarClock className="w-5 h-5 text-amber-600" />
                 Expiry reminders
               </h2>
-              {expiringMedicines.length === 0 ? (
-                <p className="text-sm text-slate-600">No medicines expiring in the next 30 days.</p>
+              {expiredReminders.length === 0 && expiringMedicines.length === 0 ? (
+                <p className="text-sm text-slate-600">No active expiry alerts right now.</p>
               ) : (
                 <div className="space-y-3">
+                  {expiredReminders.map((rem) => (
+                    <div key={rem.id} className="rounded-lg border border-red-200 bg-red-50 p-3 flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-red-900 flex items-center gap-1.5 text-sm">
+                          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                          Expired: {rem.medicineName}
+                        </p>
+                        <p className="text-xs text-red-700 mt-0.5">Expired on {rem.expiryDate}. Removed from inventory.</p>
+                      </div>
+                      <Button
+                        onClick={() => removeExpiredReminder(rem.id)}
+                        size="icon-sm"
+                        variant="ghost"
+                        className="text-red-700 hover:bg-red-100 shrink-0"
+                        aria-label={`Remove expired reminder for ${rem.medicineName}`}
+                        title="Remove reminder"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
                   {expiringMedicines.map((medicine) => {
                     const member = getMember(medicine.assignedToId);
                     return (
                       <div key={medicine.id} className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
-                        <p className="font-medium text-slate-900 flex items-center gap-2">
+                        <p className="font-medium text-slate-900 flex items-center gap-2 text-sm">
                           <AlertTriangle className="w-4 h-4 text-amber-600" />
-                          {medicine.name}
+                          Expiring soon: {medicine.name}
                         </p>
-                        <p className="text-sm text-slate-600">Expires {medicine.expiryDate}{member ? ` - ${member.name}` : ''}</p>
+                        <p className="text-xs text-slate-600 mt-0.5">Expires {medicine.expiryDate}{member ? ` - ${member.name}` : ''}</p>
                       </div>
                     );
                   })}

@@ -1,4 +1,4 @@
-import type { AppState, Caregiver, FamilyMember, Medicine, ReminderLog } from './types';
+import type { AppState, Caregiver, ExpiredMedicineReminder, FamilyMember, Medicine, ReminderLog } from './types';
 
 export const medicineImage =
   'https://images.unsplash.com/photo-1587854692152-cbe660dbde0b?w=200&h=200&fit=crop';
@@ -18,6 +18,7 @@ export const initialState: AppState = {
   reminderLogs: [],
   caregivers: [],
   appointments: [],
+  expiredReminders: [],
 };
 
 const avatarFor = (name: string, background = '0f766e') =>
@@ -115,5 +116,6 @@ export function createDemoHouseholdState(host: {
     reminderLogs,
     caregivers,
     appointments: [],
+    expiredReminders: [],
   };
 }

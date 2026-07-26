@@ -93,6 +93,15 @@ export type AppUser = {
   emergencyContact?: { name: string; phone: string };
 };
 
+export type ExpiredMedicineReminder = {
+  id: string;
+  medicineId: string;
+  medicineName: string;
+  expiryDate: string;
+  assignedToId?: string;
+  removedAt: string;
+};
+
 export type AppState = {
   user: AppUser;
   members: FamilyMember[];
@@ -100,6 +109,7 @@ export type AppState = {
   reminderLogs: ReminderLog[];
   caregivers: Caregiver[];
   appointments: Appointment[];
+  expiredReminders: ExpiredMedicineReminder[];
 };
 
 export type MedicineInput = Omit<Medicine, 'id' | 'image'> & { image?: string };

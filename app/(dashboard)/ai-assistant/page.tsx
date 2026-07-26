@@ -62,6 +62,7 @@ export default function AIAssistantPage() {
       const userContext = {
         userName: user?.name,
         leaderName,
+        emergencyContact: user?.emergencyContact,
         medicines: medicines.map((m) => ({
           name: m.name,
           dosage: m.dosage,
