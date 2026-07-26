@@ -10,16 +10,10 @@ export default function EmergencyPage() {
   const [isEditingContact, setIsEditingContact] = useState(false);
   const [contactForm, setContactForm] = useState({ name: '', phone: '' });
   const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [saveError, setSaveError] = useState<string>('');
 
-  const emergencyContact = user.emergencyContact || (() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('emergencyContact');
-      if (saved) {
-        try { return JSON.parse(saved); } catch (e) { return null; }
-      }
-    }
-    return null;
-  })();
+  const emergencyContact = user.emergencyContact ?? null;
 
   useEffect(() => {
     if (emergencyContact) {
@@ -30,11 +24,19 @@ export default function EmergencyPage() {
   const saveContact = async () => {
     if (!contactForm.name || !contactForm.phone) return;
     setIsSaving(true);
+    setSaveStatus('idle');
+    setSaveError('');
+    console.log('[Emergency] Saving contact. householdId:', user.householdId, 'contact:', contactForm);
     try {
       await updateEmergencyContact(contactForm);
+      console.log('[Emergency] Save succeeded.');
+      setSaveStatus('success');
       setIsEditingContact(false);
-    } catch (err) {
-      console.error('Failed to sync emergency contact:', err);
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    } catch (err: any) {
+      console.error('[Emergency] Failed to save emergency contact:', err);
+      setSaveError(err?.message || 'Failed to save. Check console for details.');
+      setSaveStatus('error');
     } finally {
       setIsSaving(false);
     }
@@ -52,6 +54,7 @@ export default function EmergencyPage() {
       setIsSaving(false);
     }
   };
+
 
   const callEmergency = (number: string) => {
     window.location.href = `tel:${number}`;
@@ -155,6 +158,12 @@ export default function EmergencyPage() {
                 {isSaving ? 'Saving...' : 'Save Contact'}
               </Button>
             </div>
+            {saveStatus === 'success' && (
+              <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2 mt-2">✅ Contact saved and synced successfully!</p>
+            )}
+            {saveStatus === 'error' && (
+              <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2 mt-2">❌ Error: {saveError}</p>
+            )}
           </div>
         )}
 
