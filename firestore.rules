@@ -97,5 +97,11 @@ service cloud.firestore {
                     request.resource.data.householdId == resource.data.householdId;
       allow delete: if belongsToHousehold(resource.data.householdId);
     }
+
+    // Emergency contacts stored per household — any member can read/write
+    match /emergencyContacts/{householdId} {
+      allow read: if belongsToHousehold(householdId);
+      allow write: if belongsToHousehold(householdId);
+    }
   }
 }

@@ -22,6 +22,7 @@ import { createMedicine, deleteMedicine as deleteMedicineRequest, fetchMedicines
 import { createReminder, deleteReminder as deleteReminderRequest, fetchReminders, updateReminder as updateReminderRequest } from '@/services/reminderService';
 import { createCaregiver, deleteCaregiver as deleteCaregiverRequest, fetchCaregivers } from '@/services/caregiverService';
 import { createAppointment, deleteAppointment as deleteAppointmentRequest, fetchAppointments, updateAppointment as updateAppointmentRequest } from '@/services/appointmentService';
+import { fetchEmergencyContact, saveEmergencyContact, subscribeEmergencyContact } from '@/services/emergencyContactService';
 
 export type { AppState, AppUser, Caregiver, ExpiredMedicineReminder, FamilyMember, Medicine, MedicineInput, MemberInput, ReminderInput, ReminderLog, Appointment, AppointmentInput };
 
@@ -115,11 +116,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const loadHouseholdData = useCallback(async (householdId?: string) => {
     if (!householdId || !auth.currentUser) return;
 
-    const [medicineResult, reminderResult, caregiverResult, appointmentResult] = await Promise.all([
+    const [medicineResult, reminderResult, caregiverResult, appointmentResult, emergencyContact] = await Promise.all([
       fetchMedicines(householdId),
       fetchReminders({ householdId }),
       fetchCaregivers(householdId),
       fetchAppointments(householdId),
+      fetchEmergencyContact(householdId),
     ]);
 
     setState((current) => ({
@@ -128,6 +130,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       reminderLogs: reminderResult.reminders,
       caregivers: caregiverResult.caregivers,
       appointments: appointmentResult.appointments,
+      user: {
+        ...current.user,
+        emergencyContact: emergencyContact ?? current.user.emergencyContact,
+      },
     }));
   }, []);
 
@@ -229,25 +235,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // Real-time listener for emergency contact from the dedicated Firestore collection
   useEffect(() => {
-    if (typeof window !== 'undefined' && !state.user.emergencyContact) {
-      const saved = localStorage.getItem('emergencyContact');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed && parsed.name && parsed.phone) {
-            setState((current) => {
-              if (current.user.emergencyContact) return current;
-              return {
-                ...current,
-                user: { ...current.user, emergencyContact: parsed },
-              };
-            });
-          }
-        } catch (e) {}
-      }
-    }
-  }, [state.user.emergencyContact]);
+    const householdId = state.user.householdId;
+    if (!householdId || localProviders.has(state.user.authProvider) || !auth.currentUser) return;
+
+    const unsubscribe = subscribeEmergencyContact(householdId, (contact) => {
+      setState((current) => ({
+        ...current,
+        user: { ...current.user, emergencyContact: contact ?? undefined },
+      }));
+    });
+
+    return () => unsubscribe();
+  }, [state.user.householdId, state.user.authProvider]);
 
   useEffect(() => {
     if (loading || !state.user.uid || !state.members.length) return;
@@ -722,40 +723,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setState((current) => ({ ...current, user: { ...current.user, caregiverForIds: newIds } }));
       },
       updateEmergencyContact: async (contact: { name: string; phone: string } | null) => {
-        if (typeof window !== 'undefined') {
-          if (contact) {
-            localStorage.setItem('emergencyContact', JSON.stringify(contact));
-          } else {
-            localStorage.removeItem('emergencyContact');
-          }
-        }
+        const hid = state.user.householdId;
 
-        const targetUid = auth.currentUser?.uid || (state.user.uid && !state.user.uid.startsWith('local-') ? state.user.uid : null);
-
-        if (targetUid) {
+        // For authenticated users with a real household: write to dedicated collection.
+        // The onSnapshot listener will pick up the change and update state automatically.
+        if (hid && !isLocalSession) {
           try {
-            await setDoc(doc(db, 'users', targetUid), { emergencyContact: contact }, { merge: true });
+            await saveEmergencyContact(hid, contact);
           } catch (e) {
-            console.error('Failed to sync emergencyContact to Firestore user doc:', e);
+            console.error('Failed to save emergencyContact:', e);
           }
-
-          if (state.user.householdId && !state.user.householdId.startsWith('local-')) {
-            try {
-              await updateDoc(doc(db, 'households', state.user.householdId), { emergencyContact: contact });
-            } catch (e) {}
-          }
-
-          const myMember = state.members.find(m => m.uid === targetUid || m.name.toLowerCase() === state.user.name.toLowerCase());
-          if (myMember?.id && !myMember.id.startsWith('local-')) {
-            try {
-              await updateDoc(doc(db, 'members', myMember.id), { emergencyContact: contact });
-            } catch (e) {}
-          }
+          return; // state update handled by onSnapshot
         }
 
+        // Local/guest fallback: update state directly
         setState((current) => ({
           ...current,
-          user: { ...current.user, emergencyContact: contact || undefined }
+          user: { ...current.user, emergencyContact: contact || undefined },
         }));
       },
       removeExpiredReminder: (id: string) => {
