@@ -1,8 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">MedHome</string>
-    <string name="title_activity_main">MedHome</string>
-    <string name="package_name">com.medhome.app</string>
-    <string name="custom_url_scheme">com.medhome.app</string>
-    <string name="server_client_id">345713405310-j4sldt6hcqe6ip243odi7qtq5as4sd4u.apps.googleusercontent.com</string>
-</resources>
