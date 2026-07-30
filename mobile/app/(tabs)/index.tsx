@@ -25,10 +25,10 @@ export default function DashboardScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.elderScroll}>
-          <TouchableOpacity style={styles.sosBigButton} onPress={() => Linking.openURL('tel:121')}>
+          <TouchableOpacity style={styles.sosBigButton} onPress={() => Linking.openURL(`tel:${user.emergencyContact?.phone || '121'}`)}>
             <ShieldAlert size={48} color="#ffffff" />
             <Text style={styles.sosBigText}>EMERGENCY SOS</Text>
-            <Text style={styles.sosSubText}>Tap to call emergency helpline (121)</Text>
+            <Text style={styles.sosSubText}>Tap to call {user.emergencyContact?.name || 'emergency helpline'} ({user.emergencyContact?.phone || '121'})</Text>
           </TouchableOpacity>
 
           <View style={styles.sectionHeader}>

@@ -357,21 +357,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           householdId: state.user.householdId,
           image: medInput.image || '',
         };
+        await setDoc(doc(db, 'medicines', newMed.id), newMed);
         setState((current) => ({ ...current, medicines: [...current.medicines, newMed] }));
       },
       updateMedicine: async (id, updates) => {
+        await updateDoc(doc(db, 'medicines', id), updates);
         setState((current) => ({
           ...current,
           medicines: current.medicines.map((m) => (m.id === id ? { ...m, ...updates } : m)),
         }));
       },
       updateMedicineQuantity: async (id, newQuantity) => {
+        await updateDoc(doc(db, 'medicines', id), { quantity: newQuantity });
         setState((current) => ({
           ...current,
           medicines: current.medicines.map((m) => (m.id === id ? { ...m, quantity: newQuantity } : m)),
         }));
       },
       deleteMedicine: async (id) => {
+        await deleteDoc(doc(db, 'medicines', id));
         setState((current) => ({
           ...current,
           medicines: current.medicines.filter((m) => m.id !== id),
@@ -385,6 +389,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           householdId: state.user.householdId,
           image: memberInput.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(memberInput.name)}&background=0f766e&color=fff`,
         };
+        await setDoc(doc(db, 'members', newMember.id), newMember);
         setState((current) => ({ ...current, members: [...current.members, newMember] }));
       },
       addAppointment: async (appointment) => {
@@ -394,44 +399,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           householdId: state.user.householdId || '',
           status: appointment.status || 'Scheduled',
         };
+        await setDoc(doc(db, 'appointments', newApt.id), newApt);
         setState((current) => ({ ...current, appointments: [...current.appointments, newApt] }));
       },
       deleteAppointment: async (id) => {
+        await deleteDoc(doc(db, 'appointments', id));
         setState((current) => ({
           ...current,
           appointments: current.appointments.filter((a) => a.id !== id),
         }));
       },
       markDose: async (id, status, medicineId, dosage) => {
+        let updatedQuantity: number | undefined;
+        let medToUpdate: Medicine | undefined;
+        
+        if (status === 'taken' && medicineId && dosage) {
+          const numToDeduct = parseInt(dosage.split(' ')[0]) || 1;
+          medToUpdate = state.medicines.find(m => m.id === medicineId);
+          if (medToUpdate && typeof medToUpdate.quantity === 'number') {
+            updatedQuantity = Math.max(0, medToUpdate.quantity - numToDeduct);
+            await updateDoc(doc(db, 'medicines', medicineId), { quantity: updatedQuantity });
+          }
+        }
+        
+        const existingLog = state.reminderLogs.find((r) => r.id === id);
+        const takenAt = new Date().toISOString();
+        const scheduleTime = id.match(/\d{2}:\d{2}/)?.[0] || '09:00';
+        
+        const logData = existingLog
+          ? { ...existingLog, status, takenAt }
+          : { id, status, takenAt, medicineId: medicineId || id.split('-')[0], scheduleTime, householdId: state.user.householdId };
+          
+        await setDoc(doc(db, 'reminders', id), logData);
+
         setState((current) => {
           let updatedMedicines = current.medicines;
-          
-          // Deduct inventory if marked as taken
-          if (status === 'taken' && medicineId && dosage) {
-            const numToDeduct = parseInt(dosage.split(' ')[0]) || 1;
-            updatedMedicines = current.medicines.map((m) => {
-              if (m.id === medicineId && typeof m.quantity === 'number') {
-                return { ...m, quantity: Math.max(0, m.quantity - numToDeduct) };
-              }
-              return m;
-            });
+          if (updatedQuantity !== undefined && medToUpdate) {
+            updatedMedicines = current.medicines.map((m) => (m.id === medicineId ? { ...m, quantity: updatedQuantity } : m));
           }
-
           const existingLogIndex = current.reminderLogs.findIndex((r) => r.id === id);
+          const newLogs = [...current.reminderLogs];
           if (existingLogIndex >= 0) {
-            const newLogs = [...current.reminderLogs];
-            newLogs[existingLogIndex] = { ...newLogs[existingLogIndex], status, takenAt: new Date().toISOString() };
-            return { ...current, reminderLogs: newLogs, medicines: updatedMedicines };
+            newLogs[existingLogIndex] = logData as ReminderLog;
           } else {
-            return {
-              ...current,
-              medicines: updatedMedicines,
-              reminderLogs: [
-                ...current.reminderLogs,
-                { id, status, takenAt: new Date().toISOString(), medicineId: medicineId || id.split('-')[0], scheduleTime: id.match(/\d{2}:\d{2}/)?.[0] || '09:00' },
-              ] as any,
-            };
+            newLogs.push(logData as ReminderLog);
           }
+          return { ...current, reminderLogs: newLogs, medicines: updatedMedicines };
         });
       },
       updateEmergencyContact: async (contact) => {
