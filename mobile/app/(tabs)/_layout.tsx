@@ -1,8 +1,12 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Home, Pill, Clock, ShieldAlert, Users, Settings } from 'lucide-react-native';
+import { useAppStore } from '../../lib/app-store';
 
 export default function TabLayout() {
+  const { user } = useAppStore();
+  const isElderMode = user.elderMode;
+
   return (
     <Tabs
       screenOptions={{
@@ -34,6 +38,7 @@ export default function TabLayout() {
         options={{
           title: 'Inventory',
           tabBarIcon: ({ color }) => <Pill size={22} color={color} />,
+          href: isElderMode ? null : '/inventory',
         }}
       />
       <Tabs.Screen
@@ -41,6 +46,7 @@ export default function TabLayout() {
         options={{
           title: 'Reminders',
           tabBarIcon: ({ color }) => <Clock size={22} color={color} />,
+          href: isElderMode ? null : '/reminders',
         }}
       />
       <Tabs.Screen
@@ -55,6 +61,7 @@ export default function TabLayout() {
         options={{
           title: 'Profiles',
           tabBarIcon: ({ color }) => <Users size={22} color={color} />,
+          href: isElderMode ? null : '/profiles',
         }}
       />
       <Tabs.Screen

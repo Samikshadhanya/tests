@@ -32,6 +32,14 @@
     "plugins": [
       "expo-router"
     ],
-    "scheme": "medhome"
+    "scheme": "com.medhome.app",
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "2efaba06-289c-4740-b4c6-f7f30ad260eb"
+      }
+    }
   }
 }

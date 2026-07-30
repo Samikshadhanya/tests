@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Pill, Trash2 } from 'lucide-react-native';
-import type { Medicine } from '../../lib/types';
-import { daysUntil, formatExpiryStatus } from '../../lib/date-utils';
+import type { Medicine } from '../lib/types';
+import { daysUntil, formatExpiryStatus } from '../lib/date-utils';
 
 interface MedicineCardProps {
   medicine: Medicine;

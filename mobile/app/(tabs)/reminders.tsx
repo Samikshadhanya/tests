@@ -5,23 +5,29 @@ import { Header } from '../../components/Header';
 import { DoseCard } from '../../components/DoseCard';
 import { useAppStore } from '../../lib/app-store';
 import { Clock } from 'lucide-react-native';
+import { getLocalTodayString } from '../../lib/date-utils';
 
 export default function RemindersScreen() {
   const { medicines, members, reminderLogs, markDose } = useAppStore();
 
   // Create demo dose schedule from active medicines
+  const todayStr = getLocalTodayString();
   const demoDoses = medicines.flatMap((med) => {
     const member = members.find((m) => m.id === med.assignedToId);
-    return (med.reminderTimes || ['09:00']).map((t, idx) => ({
-      id: `${med.id}-${t}-${idx}`,
-      medicineName: med.name,
-      memberName: member?.name || 'Unassigned',
-      time: t,
-      dosage: med.dosage,
-      mealInstruction: med.mealInstruction,
-      status: reminderLogs.find((r) => r.id === `${med.id}-${t}-${idx}`)?.status || 'upcoming',
-    }));
-  });
+    return (med.reminderTimes || ['09:00']).map((t, idx) => {
+      const doseId = `${med.id}-${todayStr}-${t}-${idx}`;
+      return {
+        id: doseId,
+        medicineId: med.id,
+        medicineName: med.name,
+        memberName: member?.name || 'Unassigned',
+        time: t,
+        dosage: med.dosage,
+        mealInstruction: med.mealInstruction,
+        status: reminderLogs.find((r) => r.id === doseId)?.status || 'upcoming',
+      };
+    });
+  }).sort((a, b) => a.time.localeCompare(b.time));
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -47,7 +53,7 @@ export default function RemindersScreen() {
               dosage={dose.dosage}
               mealInstruction={dose.mealInstruction}
               status={dose.status as any}
-              onTake={() => markDose(dose.id, 'taken')}
+              onTake={() => markDose(dose.id, 'taken', dose.medicineId, dose.dosage)}
               onMiss={() => markDose(dose.id, 'missed')}
             />
           ))

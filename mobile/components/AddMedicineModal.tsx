@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useAppStore } from '../lib/app-store';
-import type { MedicineInput } from '../../lib/types';
+import type { MedicineInput } from '../lib/types';
 
 interface AddMedicineModalProps {
   visible: boolean;

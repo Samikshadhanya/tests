@@ -42,8 +42,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       { icon: ShoppingCart, label: 'Purchase List', href: '/purchase-list' },
       { icon: BarChart3, label: 'Reports', href: '/reports' },
       { icon: Download, label: 'Export Data', href: '/export' },
-      { icon: ShieldAlert, label: 'Emergency SOS', href: '/emergency' },
     ] : []),
+    { icon: ShieldAlert, label: 'Emergency SOS', href: '/emergency' },
     { icon: Settings, label: 'Settings', href: '/settings' },
   ];
 

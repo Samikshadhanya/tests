@@ -1,16 +1,25 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Header } from '../../components/Header';
 import { useAppStore } from '../../lib/app-store';
-import { User, AlertCircle, Heart } from 'lucide-react-native';
+import { User, AlertCircle, Heart, Plus } from 'lucide-react-native';
+import { AddProfileModal } from '../../components/AddProfileModal';
 
 export default function ProfilesScreen() {
-  const { members } = useAppStore();
+  const { members, user, linkProfile } = useAppStore();
+  const [modalVisible, setModalVisible] = React.useState(false);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header title="Family Profiles" subtitle="Manage members, access levels & health notes" />
+      
+      <View style={styles.actionRow}>
+        <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
+          <Plus size={18} color="#ffffff" />
+          <Text style={styles.addBtnText}>Add Profile</Text>
+        </TouchableOpacity>
+      </View>
 
       <ScrollView contentContainerStyle={styles.content}>
         {members.map((member) => (
@@ -40,9 +49,25 @@ export default function ProfilesScreen() {
                 </View>
               ) : null}
             </View>
+
+            {(!member.uid && user.linkedMemberId !== member.id) && (
+              <TouchableOpacity 
+                style={styles.linkBtn}
+                onPress={() => linkProfile(member.id)}
+              >
+                <Text style={styles.linkBtnText}>Link to my Google Account</Text>
+              </TouchableOpacity>
+            )}
+            {user.linkedMemberId === member.id && (
+              <View style={styles.linkedBadge}>
+                <Text style={styles.linkedBadgeText}>✓ This is you</Text>
+              </View>
+            )}
           </View>
         ))}
       </ScrollView>
+
+      <AddProfileModal visible={modalVisible} onClose={() => setModalVisible(false)} />
     </SafeAreaView>
   );
 }
@@ -52,8 +77,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
+  actionRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: 'flex-end',
+  },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0f766e',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  addBtnText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
   content: {
     padding: 16,
+    paddingTop: 0,
   },
   card: {
     backgroundColor: '#ffffff',
@@ -94,6 +139,10 @@ const styles = StyleSheet.create({
   leaderBadge: {
     backgroundColor: '#ccfbf1',
   },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
   leaderBadgeText: {
     fontSize: 11,
     fontWeight: 'bold',
@@ -122,5 +171,33 @@ const styles = StyleSheet.create({
   detailText: {
     fontSize: 12,
     color: '#475569',
+  },
+  linkBtn: {
+    marginTop: 12,
+    backgroundColor: '#f1f5f9',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  linkBtnText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#334155',
+  },
+  linkedBadge: {
+    marginTop: 12,
+    backgroundColor: '#dcfce7',
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  linkedBadgeText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#166534',
   },
 });
