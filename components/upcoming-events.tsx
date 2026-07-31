@@ -46,7 +46,7 @@ export default function UpcomingEvents() {
           {todayReminders.map((item) => {
             const medicine = medicines.find((med) => med.id === item.medicineId);
             const member = getMember(item.memberId);
-            const Icon = Number(item.time.slice(0, 2)) >= 18 ? Moon : Sun;
+            const Icon = item.time && Number(item.time.slice(0, 2)) >= 18 ? Moon : Sun;
 
             return (
               <div key={item.id} className="flex items-start gap-3 pb-3 border-b border-slate-200 last:border-0">
@@ -59,7 +59,7 @@ export default function UpcomingEvents() {
               </div>
             );
           })}
-          {purchaseList.slice(0, 2).map((medicine) => (
+          {(purchaseList || []).slice(0, 2).map((medicine) => (
             <div key={medicine.id} className="flex items-start gap-3 pb-3 border-b border-slate-200 last:border-0">
               <ShoppingCart className="w-4 h-4 text-teal-600 mt-1" />
               <div className="flex-1 min-w-0">
