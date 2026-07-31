@@ -45,8 +45,15 @@ export default function RemindersPage() {
     ? baseReminders
     : baseReminders.filter((r) => r.memberId === selectedProfileId);
 
+  const sortedReminders = [...filteredReminders].sort((a, b) => {
+    if (typeof a.time !== 'string' || typeof b.time !== 'string') return 0;
+    const [h1, m1] = a.time.split(':').map(Number);
+    const [h2, m2] = b.time.split(':').map(Number);
+    return h1 * 60 + m1 - (h2 * 60 + m2);
+  });
+
   const escalatedReminders = todayReminders.filter((r) => {
-    if (r.status === 'taken') return false;
+    if (r.status === 'taken' || typeof r.time !== 'string') return false;
     const [h, m] = r.time.split(':').map(Number);
     const reminderTime = new Date();
     reminderTime.setHours(h, m, 0, 0);

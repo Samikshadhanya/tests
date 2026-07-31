@@ -13,6 +13,7 @@ export async function requestNotificationPermissions() {
 }
 
 function parseTime(timeStr: string) {
+  if (typeof timeStr !== 'string') return { hour: 0, minute: 0 };
   const [hour, minute] = timeStr.split(':').map(Number);
   return { hour, minute };
 }
