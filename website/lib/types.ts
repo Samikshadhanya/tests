@@ -86,6 +86,7 @@ export type AppUser = {
   householdId?: string;
   households?: string[];
   householdIds?: string[];
+  householdNames?: string[];
   calendarConnected: boolean;
   elderMode?: boolean;
   caregiverForIds?: string[];
@@ -127,6 +128,7 @@ export type UserProfile = {
   authProvider: AppUser['authProvider'];
   activeHouseholdId?: string;
   householdIds: string[];
+  householdNames?: string[];
   calendarConnected: boolean;
   elderMode?: boolean;
   caregiverForIds?: string[];

@@ -34,7 +34,7 @@ export default function LoginScreen() {
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
       // the structure changed in v11+, but we fallback properly
-      const idToken = userInfo.data?.idToken || userInfo.idToken; 
+      const idToken = (userInfo as any).data?.idToken || (userInfo as any).idToken; 
       
       if (!idToken) throw new Error('No Google ID Token found');
       

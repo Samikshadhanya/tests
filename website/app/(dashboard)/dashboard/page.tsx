@@ -18,7 +18,7 @@ export default function DashboardPage() {
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
   const escalatedReminders = todayReminders.filter(reminder => {
-    if (reminder.status !== 'upcoming') return false;
+    if (reminder.status !== 'upcoming' || typeof reminder.time !== 'string') return false;
     const [hours, minutes] = reminder.time.split(':').map(Number);
     const reminderMinutes = hours * 60 + minutes;
     return (currentMinutes - reminderMinutes) > 30;

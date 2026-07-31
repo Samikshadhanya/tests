@@ -251,6 +251,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return {
           id: doseId,
           medicineId: med.id,
+          memberId: med.assignedToId || '',
           scheduleTime: t,
           time: t,
           status: existingLog ? existingLog.status : 'upcoming',
@@ -590,7 +591,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await updateDoc(memberRef, { uid });
         
         const userRef = doc(db, 'users', uid);
-        await updateDoc(userRef, { linkedMemberId: memberId }, { merge: true });
+        await updateDoc(userRef, { linkedMemberId: memberId });
         
         setState(curr => ({
           ...curr,

@@ -91,6 +91,7 @@ export type AppUser = {
   caregiverForIds?: string[];
   accessLevel?: 'Leader' | 'Standard' | 'Elderly';
   emergencyContact?: { name: string; phone: string };
+  linkedMemberId?: string;
 };
 
 export type ExpiredMedicineReminder = {
@@ -131,6 +132,7 @@ export type UserProfile = {
   elderMode?: boolean;
   caregiverForIds?: string[];
   emergencyContact?: { name: string; phone: string };
+  linkedMemberId?: string;
   createdAt?: string;
   updatedAt?: string;
 };
