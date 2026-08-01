@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AlertTriangle, CalendarClock, ChevronLeft, Check, Clock, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/lib/app-store';
+import { toast } from '@/hooks/use-toast';
 
 export default function RemindersPage() {
   const { todayReminders, medicines, members, user, getMember, markDose, deleteReminder, addReminder, expiringMedicines, lowStockMedicines, expiredReminders, removeExpiredReminder } = useAppStore();
@@ -33,6 +34,30 @@ export default function RemindersPage() {
       memberId: selectedMedicine.assignedToId,
       time,
     });
+  };
+
+  const handleMarkDose = async (reminderId: string, status: 'taken' | 'missed') => {
+    const reminder = todayReminders.find(r => r.id === reminderId);
+    const medicine = medicines.find(m => m.id === reminder?.medicineId);
+
+    await markDose(reminderId, status);
+
+    // Check if stock just hit the threshold after marking taken
+    if (status === 'taken' && medicine) {
+      const newQuantity = medicine.quantity - 1;
+      const threshold = Math.max(medicine.lowStockAt || 5, 5);
+      if (newQuantity <= threshold && newQuantity > 0) {
+        toast({
+          title: `⚠️ Low Stock: ${medicine.name}`,
+          description: `Only ${newQuantity} ${medicine.unit} left. Auto-added to Purchase List.`,
+        });
+      } else if (newQuantity === 0) {
+        toast({
+          title: `🚨 Out of Stock: ${medicine.name}`,
+          description: `No ${medicine.unit} remaining! Please restock immediately.`,
+        });
+      }
+    }
   };
 
   // Elderly and Standard users only see their own reminders; Leaders see all / can filter
@@ -181,11 +206,11 @@ export default function RemindersPage() {
                         </span>
                       ) : (
                         <>
-                          <Button onClick={() => markDose(reminder.id, 'taken')} size="sm" className="bg-green-600 hover:bg-green-700">
+                          <Button onClick={() => handleMarkDose(reminder.id, 'taken')} size="sm" className="bg-green-600 hover:bg-green-700">
                             <Check className="w-4 h-4" />
                             Taken
                           </Button>
-                          <Button onClick={() => markDose(reminder.id, 'missed')} size="sm" variant="outline" className="text-red-600">
+                          <Button onClick={() => handleMarkDose(reminder.id, 'missed')} size="sm" variant="outline" className="text-red-600">
                             <X className="w-4 h-4" />
                             Missed
                           </Button>
