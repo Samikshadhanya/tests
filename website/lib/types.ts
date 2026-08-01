@@ -52,6 +52,7 @@ export type ReminderInput = Omit<ReminderLog, 'id' | 'status'> & {
 export type Caregiver = {
   id: string;
   householdId?: string;
+  memberId?: string;
   name: string;
   relationship: string;
   accessLevel: string;

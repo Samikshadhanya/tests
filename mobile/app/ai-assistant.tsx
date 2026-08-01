@@ -63,6 +63,7 @@ ${appointments.length > 0 ? appointments.map(a => `- Dr. ${a.doctorName}, Date: 
       }));
 
       const contents = [
+        { role: 'user', parts: [{ text: systemContext }] },
         ...formattedMessages,
         { role: 'user', parts: [{ text: currentInput }] }
       ];
@@ -70,12 +71,7 @@ ${appointments.length > 0 ? appointments.map(a => `- Dr. ${a.doctorName}, Date: 
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          system_instruction: {
-            parts: [{ text: systemContext }]
-          },
-          contents 
-        }),
+        body: JSON.stringify({ contents }),
       });
 
       const data = await res.json();

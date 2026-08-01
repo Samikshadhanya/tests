@@ -182,13 +182,6 @@ export default function AIAssistantPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleClear}
-            className="flex items-center gap-1.5 rounded-xl bg-slate-800/80 px-3.5 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700 transition"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Reset Chat
-          </button>
         </div>
       </div>
 

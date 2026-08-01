@@ -53,7 +53,8 @@ function parseTableLine(line: string): string[] {
 }
 
 type ContentBlock =
-  | { type: 'paragraph' | 'bullet' | 'notice' | 'refillAlert' | 'header'; text: string }
+  | { type: 'paragraph' | 'bullet' | 'notice' | 'header'; text: string }
+  | { type: 'refillAlertGroup'; alerts: string[] }
   | { type: 'table'; headers: string[]; rows: string[][] }
   | { type: 'empty' };
 
@@ -96,7 +97,12 @@ export function FormattedMessage({ content, role, leaderName, leaderPhone }: For
     }
 
     if (/^🔔?\s*Refill Alert/i.test(trimmed)) {
-      blocks.push({ type: 'refillAlert', text: trimmed });
+      const lastBlock = blocks[blocks.length - 1];
+      if (lastBlock && lastBlock.type === 'refillAlertGroup') {
+        lastBlock.alerts.push(trimmed);
+      } else {
+        blocks.push({ type: 'refillAlertGroup', alerts: [trimmed] });
+      }
       continue;
     }
 
@@ -138,22 +144,24 @@ export function FormattedMessage({ content, role, leaderName, leaderPhone }: For
           return <div key={idx} className="h-1" />;
         }
 
-        if (block.type === 'refillAlert') {
-          const detailText = (() => {
+        if (block.type === 'refillAlertGroup') {
+          const details: string[] = [];
+          block.alerts.forEach((text) => {
             let detail = '';
-            const match = block.text.match(/(?:registered for|refill for|restock)\s+(.+?)(?:\.|$)/i);
+            const match = text.match(/(?:registered for|refill for|restock)\s+(.+?)(?:\.|$)/i);
             if (match && match[1]) {
               detail = match[1].trim();
-            }
-            if (detail) {
               const hasQuantity = /\d+|strip|pack|box|bottle|unit|tablet/i.test(detail);
               if (!hasQuantity) {
                 detail += ' (Quantity: 1 strip)';
               }
-              return `Hi ${leaderName || 'Leader'}! MedHome Refill Alert: Please assist with restocking ${detail}.`;
+              details.push(detail);
             }
-            return `Hi ${leaderName || 'Leader'}! MedHome Refill Alert: A medication refill request (Quantity: 1 strip) has been logged. Please assist with restocking.`;
-          })();
+          });
+
+          const detailText = details.length > 0
+            ? `Hi ${leaderName || 'Leader'}! MedHome Refill Alert: Please assist with restocking the following medications:\n- ${details.join('\n- ')}`
+            : `Hi ${leaderName || 'Leader'}! MedHome Refill Alert: A medication refill request has been logged. Please assist with restocking.`;
 
           const blockWaUrl = phoneDigits
             ? `https://wa.me/${phoneDigits}?text=${encodeURIComponent(detailText)}`
@@ -170,7 +178,11 @@ export function FormattedMessage({ content, role, leaderName, leaderPhone }: For
             >
               <div className="flex items-start gap-2 font-medium text-teal-900 leading-snug">
                 <span className="text-base select-none">🔔</span>
-                <div className="flex-1">{renderInline(block.text)}</div>
+                <div className="flex-1 space-y-1">
+                  {block.alerts.map((alertText, i) => (
+                    <div key={i}>{renderInline(alertText)}</div>
+                  ))}
+                </div>
               </div>
 
               {/* Direct Messaging Actions */}

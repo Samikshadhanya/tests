@@ -12,7 +12,7 @@ interface HeaderProps {
 
 export default function Header({ onMenuClick }: HeaderProps) {
   const router = useRouter();
-  const { user, signOut, todayReminders, lowStockMedicines, expiringMedicines, expiredReminders, removeExpiredReminder, switchHousehold, addHousehold } = useAppStore();
+  const { user, signOut, todayReminders, lowStockMedicines, expiringMedicines, expiredReminders, removeExpiredReminder, switchHousehold, addHousehold, medicines } = useAppStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
   const [showHouseholdMenu, setShowHouseholdMenu] = useState(false);
@@ -29,14 +29,17 @@ export default function Header({ onMenuClick }: HeaderProps) {
       message: `${rem.medicineName} expired on ${rem.expiryDate}.`,
       onRemove: () => removeExpiredReminder(rem.id),
     })),
-    ...todayReminders.filter((reminder) => reminder.status === 'missed').map((reminder) => ({
-      id: `missed-${reminder.id}`,
-      type: 'alert',
-      icon: AlertTriangle,
-      title: 'Missed dose',
-      message: `A ${reminder.time} reminder was marked missed.`,
-      onRemove: undefined,
-    })),
+    ...todayReminders.filter((reminder) => reminder.status === 'missed').map((reminder) => {
+      const medicine = medicines.find(m => m.id === reminder.medicineId);
+      return {
+        id: `missed-${reminder.id}`,
+        type: 'alert',
+        icon: AlertTriangle,
+        title: 'Missed dose',
+        message: `A dose of ${medicine?.name || 'medicine'} ${reminder.time ? `at ${reminder.time}` : ''} was missed.`,
+        onRemove: undefined,
+      };
+    }),
     ...lowStockMedicines.map((medicine) => ({
       id: `stock-${medicine.id}`,
       type: 'warning',

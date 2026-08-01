@@ -74,6 +74,7 @@ export default function FamilyProfilePage() {
   const selectedMember = members.find((member) => member.id === selectedMemberId) ?? members[0];
   const profileMedicines = medicines.filter((medicine) => medicine.assignedToId === selectedMember?.id);
   const profileReminders = todayReminders.filter((reminder) => reminder.memberId === selectedMember?.id);
+  const profileCaregivers = caregivers.filter((caregiver) => caregiver.memberId === selectedMember?.id || !caregiver.memberId);
 
   useEffect(() => {
     if (!selectedMemberId && members[0]?.id) {
@@ -398,10 +399,10 @@ export default function FamilyProfilePage() {
 
               <Panel title="Caregiver Access" icon={<Shield className="w-5 h-5 text-teal-600" />}>
                 <div className="space-y-3">
-                  {caregivers.length === 0 ? (
+                  {profileCaregivers.length === 0 ? (
                     <p className="text-sm text-slate-500 italic">No caregivers added.</p>
                   ) : null}
-                  {caregivers.map((caregiver) => (
+                  {profileCaregivers.map((caregiver) => (
                     <div key={caregiver.id} className="flex items-center justify-between border-b border-slate-100 pb-3 last:border-0 last:pb-0">
                       <div>
                         <p className="font-medium text-slate-900">{caregiver.name}</p>
@@ -683,6 +684,7 @@ export default function FamilyProfilePage() {
                   phone: caretakerContact.trim(),
                   email: caretakerEmail.trim(),
                   notes: caretakerNotes.trim(),
+                  memberId: selectedMember?.id,
                 });
                 setIsAddingCaretaker(false);
                 setCaretakerName('');

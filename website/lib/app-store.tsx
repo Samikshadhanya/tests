@@ -91,16 +91,16 @@ const userFromProfile = (
 
   return {
     uid: profile.uid,
-    name: profile.name || profile.email.split('@')[0] || 'User',
-    email: profile.email,
+    name: profile.name || (profile.email ? profile.email.split('@')[0] : '') || 'User',
+    email: profile.email || '',
     photoURL: profile.photoURL,
     role: profile.role || 'Host',
     authProvider: profile.authProvider || 'google',
     household: household?.name || 'My Family',
-    householdId: household?.id || profile.activeHouseholdId || profile.householdIds[0],
+    householdId: household?.id || profile.activeHouseholdId || (profile.householdIds || [])[0],
     households: households.length ? households.map((item) => item.name) : household ? [household.name] : [],
-    householdIds: households.length ? households.map((item) => item.id) : profile.householdIds,
-    calendarConnected: profile.calendarConnected,
+    householdIds: households.length ? households.map((item) => item.id) : (profile.householdIds || []),
+    calendarConnected: profile.calendarConnected || false,
     elderMode: isElderly ? true : profile.elderMode,
     caregiverForIds: profile.caregiverForIds,
     accessLevel: myMember?.accessLevel || 'Leader', // Default creator/host to leader
@@ -309,7 +309,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       expiringMedicines,
       duplicateMedicines,
       purchaseList: lowStockMedicines,
-      todayReminders: state.reminderLogs,
+      todayReminders: (() => {
+        const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        return state.reminderLogs.filter((r) => {
+          // Must have a valid time string to avoid split() crash
+          if (!r.time || typeof r.time !== 'string') return false;
+          // Include reminders created today OR that are still upcoming/missed
+          if (r.status === 'upcoming' || r.status === 'missed') return true;
+          // For 'taken' reminders, only show if takenAt is today
+          if (r.takenAt) return r.takenAt.startsWith(todayStr);
+          return true;
+        });
+      })(),
       refreshHouseholdData,
       signIn: async (provider, email, name, age, role, password, createAccount) => {
         setError(null);

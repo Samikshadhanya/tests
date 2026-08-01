@@ -47,7 +47,7 @@ service cloud.firestore {
                            addedHouseholdIds().size() == 0
                            ||
                            (addedHouseholdIds().size() == 1 &&
-                            isHouseholdOwner(addedHouseholdIds()[0]))
+                            exists(/databases/$(database)/documents/households/$(addedHouseholdIds()[0])))
                          )
                        );
       allow delete: if false;
