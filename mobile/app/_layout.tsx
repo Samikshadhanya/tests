@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider, useAppStore } from '../lib/app-store';
 import * as Notifications from 'expo-notifications';
+import ProfileLinker from '../components/ProfileLinker';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -32,7 +33,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [user.uid, segments, navigationState?.key]);
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <ProfileLinker />
+    </>
+  );
 }
 
 export default function RootLayout() {
