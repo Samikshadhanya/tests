@@ -4,8 +4,6 @@ import { useState } from 'react';
 import { ChevronLeft, ShieldCheck, Users, Link as LinkIcon, KeyRound, Bell, Trash2 } from 'lucide-react';
 import { useAppStore } from '@/lib/app-store';
 import { Button } from '@/components/ui/button';
-import { Capacitor } from '@capacitor/core';
-import { LocalNotifications } from '@capacitor/local-notifications';
 // Replaced Switch with a custom segmented control
 
 export default function SettingsPage() {
@@ -22,7 +20,9 @@ export default function SettingsPage() {
 
   const requestNotificationPermission = async () => {
     try {
+      const { Capacitor } = await import('@capacitor/core');
       if (Capacitor.isNativePlatform()) {
+        const { LocalNotifications } = await import('@capacitor/local-notifications');
         let permStatus = await LocalNotifications.checkPermissions();
         if (permStatus.display !== 'granted') {
           permStatus = await LocalNotifications.requestPermissions();

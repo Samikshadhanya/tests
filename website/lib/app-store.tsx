@@ -60,6 +60,7 @@ type AppStore = AppState & {
   toggleCaregiverOptIn: (memberId: string) => Promise<void>;
   updateEmergencyContact: (contact: { name: string; phone: string } | null) => Promise<void>;
   removeExpiredReminder: (id: string) => void;
+  linkProfile: (memberId: string) => Promise<void>;
 };
 
 const AppContext = createContext<AppStore | null>(null);
@@ -684,6 +685,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!householdId) throw new Error('No active household selected.');
         const result = await createAppointment({ ...appointment, householdId } as any);
         setState((current) => ({ ...current, appointments: [...current.appointments, result.appointment] }));
+      },
+      linkProfile: async (memberId: string) => {
+        if (!state.user.uid) return;
+        
+        if (isLocalSession) {
+          setState((current) => {
+            const newMembers = current.members.map((m) => m.id === memberId ? { ...m, uid: current.user.uid } : m);
+            return { ...current, members: newMembers };
+          });
+          return;
+        }
+
+        await updateDoc(doc(db, 'members', memberId), { uid: state.user.uid });
+        setState((current) => {
+          const newMembers = current.members.map((m) => m.id === memberId ? { ...m, uid: current.user.uid } : m);
+          // If we link to a profile, we should adopt its access level/elder mode
+          const linkedMember = newMembers.find(m => m.id === memberId);
+          let newUser = current.user;
+          if (linkedMember) {
+            const newElderMode = linkedMember.accessLevel === 'Elderly' ? true : (linkedMember.accessLevel === 'Standard' || linkedMember.accessLevel === 'Leader' ? false : current.user.elderMode);
+            newUser = { ...current.user, accessLevel: linkedMember.accessLevel || 'Leader', elderMode: newElderMode };
+          }
+          return { ...current, members: newMembers, user: newUser };
+        });
       },
       updateAppointment: async (id, appointment) => {
         if (isLocalSession) {

@@ -5,6 +5,7 @@ import Sidebar from './sidebar';
 import Header from './header';
 import ProtectedRoute from './protected-route';
 import AIChatDrawer from './ai-chat-drawer';
+import ProfileLinker from './profile-linker';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -31,6 +32,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
 
         <AIChatDrawer />
+        <ProfileLinker />
       </div>
     </ProtectedRoute>
   );

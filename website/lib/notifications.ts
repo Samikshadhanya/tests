@@ -1,5 +1,4 @@
-import { LocalNotifications } from '@capacitor/local-notifications';
-import { Capacitor } from '@capacitor/core';
+// Capacitor imports are done dynamically inside functions to avoid SSR crashes on Vercel
 
 export async function requestNotificationPermissions() {
   if (Capacitor.isNativePlatform()) {
