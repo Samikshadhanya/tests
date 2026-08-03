@@ -44,14 +44,14 @@ RULES:
 
       if (medicines && Array.isArray(medicines) && medicines.length > 0) {
         systemContext += `\n\nMEDICINES INVENTORY (${medicines.length} total):\n` +
-          medicines.map((m: any) => `- ${m.name} (${m.dosage || 'N/A'}): ${m.stockCount ?? 0} in stock, instructions: "${m.instructions || 'None'}"`).join('\n');
+          medicines.map((m: any) => `- ${m.name} (Assigned to: ${m.assignedTo || 'Unassigned'}): ${m.dosage || 'N/A'}, ${m.quantity ?? 0} in stock, instructions: "${m.instructions || 'None'}"`).join('\n');
       } else {
         systemContext += `\n\nMEDICINES INVENTORY: No medicines logged yet.`;
       }
 
       if (reminders && Array.isArray(reminders) && reminders.length > 0) {
         systemContext += `\n\nTODAY'S REMINDERS/DOSES:\n` +
-          reminders.map((r: any) => `- Medicine: ${r.medicineName || r.medicineId}, Time: ${r.time}, Status: ${r.status}`).join('\n');
+          reminders.map((r: any) => `- Medicine: ${r.medicineName || r.medicineId} (For: ${r.assignedTo || 'Unknown'}), Time: ${r.time}, Status: ${r.status}`).join('\n');
       }
 
       if (appointments && Array.isArray(appointments) && appointments.length > 0) {

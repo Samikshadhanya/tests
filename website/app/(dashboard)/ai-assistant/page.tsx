@@ -63,18 +63,24 @@ export default function AIAssistantPage() {
         userName: user?.name,
         leaderName,
         emergencyContact: user?.emergencyContact,
-        medicines: medicines.map((m) => ({
-          name: m.name,
-          dosage: m.dosage,
-          quantity: m.quantity,
-          instructions: m.mealInstruction,
-        })),
+        medicines: medicines.map((m) => {
+          const member = members.find((member) => member.id === m.assignedToId);
+          return {
+            name: m.name,
+            dosage: m.dosage,
+            quantity: m.quantity,
+            instructions: m.mealInstruction,
+            assignedTo: member ? member.name : 'Unassigned',
+          };
+        }),
         reminders: todayReminders.map((r) => {
           const med = medicines.find((m) => m.id === r.medicineId);
+          const member = members.find((m) => m.id === r.memberId);
           return {
             medicineName: med?.name || r.medicineId,
             time: r.time,
             status: r.status,
+            assignedTo: member ? member.name : 'Unknown',
           };
         }),
         appointments: appointments.map((a) => ({

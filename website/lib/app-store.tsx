@@ -294,6 +294,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const effectiveElderMode = effectiveAccessLevel === 'Elderly' ? true : state.user.elderMode;
     const effectiveUser = {
       ...state.user,
+      name: myMember?.name || state.user.name,
+      role: myMember?.role || state.user.role,
       accessLevel: effectiveAccessLevel as 'Leader' | 'Standard' | 'Elderly',
       elderMode: effectiveElderMode,
     };

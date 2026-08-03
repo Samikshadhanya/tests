@@ -114,12 +114,14 @@ export async function generateInviteCode(householdId: string) {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not authenticated');
 
-  // Verify ownership
-  const householdRef = doc(db, 'households', householdId);
-  const householdDoc = await getDoc(householdRef);
-  if (!householdDoc.exists() || householdDoc.data().ownerUid !== uid) {
+  // Verify user belongs to household
+  const userRef = doc(db, 'users', uid);
+  const userDoc = await getDoc(userRef);
+  if (!userDoc.exists() || !(userDoc.data().householdIds || []).includes(householdId)) {
     throw new Error('Not authorized to generate invite code');
   }
+  
+  const householdRef = doc(db, 'households', householdId);
 
   const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
   
