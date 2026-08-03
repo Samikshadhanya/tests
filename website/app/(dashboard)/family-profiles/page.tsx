@@ -232,7 +232,7 @@ export default function FamilyProfilePage() {
                       Create Profile
                     </Button>
                   )}
-                  {user.accessLevel !== 'Elderly' && (
+                  {!(user.accessLevel === 'Standard' && selectedMember?.uid !== user.uid) && (
                     <Button
                       onClick={() => setIsAddingMedicine(true)}
                       disabled={!selectedMember}
@@ -252,7 +252,7 @@ export default function FamilyProfilePage() {
                         <p className="text-sm text-slate-600">{selectedMember.role}{selectedMember.age !== 'Unspecified' ? `, age ${selectedMember.age}` : ''}</p>
                         <p className="text-xs text-slate-500">{selectedMember.gender === 'Unspecified' ? 'Details not added yet' : selectedMember.gender}</p>
                       </div>
-                      {user.accessLevel !== 'Elderly' && (
+                      {!(user.accessLevel === 'Standard' && selectedMember?.uid !== user.uid) && (
                         <button
                           onClick={openEditModal}
                           className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:bg-teal-50 hover:text-teal-700 transition"
