@@ -60,8 +60,8 @@ export default function RemindersPage() {
     }
   };
 
-  // Elderly users only see their own reminders; Standard and Leaders see all
-  const isRestricted = isElderly;
+  // Elderly and Standard users only see their own reminders; Leaders see all / can filter
+  const isRestricted = isElderly || user.accessLevel === 'Standard';
   const baseReminders = isRestricted && myMember
     ? todayReminders.filter(r => r.memberId === myMember.id)
     : todayReminders;
