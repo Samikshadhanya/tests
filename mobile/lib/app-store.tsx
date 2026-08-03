@@ -259,8 +259,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
     }).sort((a, b) => a.time.localeCompare(b.time));
 
+    const hasUidLinkedMember = state.members.some(m => m.uid === state.user.uid);
+    const myMember = state.members.find(m =>
+      m.uid === state.user.uid ||
+      (!hasUidLinkedMember && m.name.toLowerCase() === state.user.name.toLowerCase())
+    );
+    const effectiveUser = {
+      ...state.user,
+      name: myMember?.name || state.user.name,
+      role: myMember?.role || state.user.role,
+    };
+
     return {
       ...state,
+      user: effectiveUser,
       loading,
       error,
       lowStockMedicines,
@@ -471,8 +483,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const householdRef = doc(db, 'households', householdId);
         const householdDoc = await getDoc(householdRef);
-        if (!householdDoc.exists() || householdDoc.data().ownerUid !== uid) {
-          throw new Error('Not authorized to generate invite code. Only the owner can do this.');
+        if (!householdDoc.exists() || !state.user.householdIds.includes(householdId)) {
+          throw new Error('Not authorized to generate invite code.');
         }
 
         const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
