@@ -48,7 +48,7 @@ export default function MedicineTable({ medicines, showDelete = false }: Medicin
           const daysLeft = daysUntil(medicine.expiryDate);
           const urgent = (daysLeft >= 0 && daysLeft <= 30) || medicine.quantity <= medicine.lowStockAt;
           const isMine = medicine.assignedToId === myMember?.id;
-          const canModify = user.accessLevel !== 'Standard' || isMine;
+          const canModify = user.accessLevel !== 'Elderly' || isMine;
 
           return (
             <article key={medicine.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -154,7 +154,7 @@ export default function MedicineTable({ medicines, showDelete = false }: Medicin
               const daysLeft = daysUntil(medicine.expiryDate);
               const urgent = (daysLeft >= 0 && daysLeft <= 30) || medicine.quantity <= medicine.lowStockAt;
               const isMine = medicine.assignedToId === myMember?.id;
-              const canModify = user.accessLevel !== 'Standard' || isMine;
+              const canModify = user.accessLevel !== 'Elderly' || isMine;
 
               return (
                 <tr key={medicine.id} className="hover:bg-slate-50/80 transition">

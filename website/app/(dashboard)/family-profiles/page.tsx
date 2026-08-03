@@ -74,7 +74,7 @@ export default function FamilyProfilePage() {
   const selectedMember = members.find((member) => member.id === selectedMemberId) ?? members[0];
   const profileMedicines = medicines.filter((medicine) => medicine.assignedToId === selectedMember?.id);
   const profileReminders = todayReminders.filter((reminder) => reminder.memberId === selectedMember?.id);
-  const profileCaregivers = caregivers.filter((caregiver) => caregiver.memberId === selectedMember?.id || !caregiver.memberId);
+  const profileCaregivers = caregivers.filter((caregiver) => caregiver.memberId === selectedMember?.id);
 
   useEffect(() => {
     if (!selectedMemberId && members[0]?.id) {
@@ -232,7 +232,7 @@ export default function FamilyProfilePage() {
                       Create Profile
                     </Button>
                   )}
-                  {!(user.accessLevel === 'Standard' && selectedMember?.uid !== user.uid) && (
+                  {user.accessLevel !== 'Elderly' && (
                     <Button
                       onClick={() => setIsAddingMedicine(true)}
                       disabled={!selectedMember}
@@ -252,7 +252,7 @@ export default function FamilyProfilePage() {
                         <p className="text-sm text-slate-600">{selectedMember.role}{selectedMember.age !== 'Unspecified' ? `, age ${selectedMember.age}` : ''}</p>
                         <p className="text-xs text-slate-500">{selectedMember.gender === 'Unspecified' ? 'Details not added yet' : selectedMember.gender}</p>
                       </div>
-                      {!(user.accessLevel === 'Standard' && selectedMember?.uid !== user.uid) && (
+                      {user.accessLevel !== 'Elderly' && (
                         <button
                           onClick={openEditModal}
                           className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:bg-teal-50 hover:text-teal-700 transition"
