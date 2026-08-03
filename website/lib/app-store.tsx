@@ -921,8 +921,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppContext.Provider value={value}>
       {error && (
-        <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 shadow-sm">
-          {error}
+        <div className="fixed left-1/2 top-4 z-[100] flex w-[min(90vw,400px)] -translate-x-1/2 items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 shadow-lg">
+          <div className="flex-1 overflow-hidden">{error}</div>
+          <button 
+            onClick={() => setError(null)}
+            className="shrink-0 rounded p-1 text-red-500 hover:bg-red-100 hover:text-red-700 transition"
+            aria-label="Dismiss error"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
         </div>
       )}
       {children}
