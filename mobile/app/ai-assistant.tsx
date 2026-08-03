@@ -23,7 +23,7 @@ export default function AiAssistantScreen() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
 
-  const { user, medicines, todayReminders, appointments } = useAppStore();
+  const { user, medicines, todayReminders, appointments, members } = useAppStore();
 
   const handleSend = async () => {
     if (!input.trim() || sending) return;
@@ -48,10 +48,17 @@ Household: ${user.household}
 Elder Mode: ${user.elderMode ? 'Yes' : 'No'}
 
 MEDICINES INVENTORY:
-${medicines.length > 0 ? medicines.map(m => `- ${m.name} (${m.dosage}): ${m.quantity} in stock, instructions: "${m.mealInstruction}"`).join('\n') : 'No medicines logged.'}
+${medicines.length > 0 ? medicines.map(m => {
+  const member = members.find(mbr => mbr.id === m.assignedToId);
+  return `- ${m.name} (Assigned to: ${member ? member.name : 'Unassigned'}): ${m.dosage}, ${m.quantity} in stock, instructions: "${m.mealInstruction}"`;
+}).join('\n') : 'No medicines logged.'}
 
 TODAY'S REMINDERS:
-${todayReminders.length > 0 ? todayReminders.map((r: any) => `- ${r.medicineId} at ${r.time} (Status: ${r.status})`).join('\n') : 'No reminders.'}
+${todayReminders.length > 0 ? todayReminders.map((r: any) => {
+  const med = medicines.find(m => m.id === r.medicineId);
+  const member = members.find(mbr => mbr.id === r.memberId);
+  return `- ${med?.name || r.medicineId} (For: ${member ? member.name : 'Unknown'}) at ${r.time} (Status: ${r.status})`;
+}).join('\n') : 'No reminders.'}
 
 UPCOMING APPOINTMENTS:
 ${appointments.length > 0 ? appointments.map(a => `- Dr. ${a.doctorName}, Date: ${a.date} at ${a.time}`).join('\n') : 'No appointments.'}
@@ -63,7 +70,6 @@ ${appointments.length > 0 ? appointments.map(a => `- Dr. ${a.doctorName}, Date: 
       }));
 
       const contents = [
-        { role: 'user', parts: [{ text: systemContext }] },
         ...formattedMessages,
         { role: 'user', parts: [{ text: currentInput }] }
       ];
@@ -71,7 +77,12 @@ ${appointments.length > 0 ? appointments.map(a => `- Dr. ${a.doctorName}, Date: 
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents }),
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: systemContext }]
+          },
+          contents
+        }),
       });
 
       const data = await res.json();
