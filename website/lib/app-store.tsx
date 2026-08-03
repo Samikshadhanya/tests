@@ -313,16 +313,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       duplicateMedicines,
       purchaseList: lowStockMedicines,
       todayReminders: (() => {
-        const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-        return state.reminderLogs.filter((r) => {
-          // Must have a valid time string to avoid split() crash
-          if (!r.time || typeof r.time !== 'string') return false;
-          // Include reminders created today OR that are still upcoming/missed
-          if (r.status === 'upcoming' || r.status === 'missed') return true;
-          // For 'taken' reminders, only show if takenAt is today
-          if (r.takenAt) return r.takenAt.startsWith(todayStr);
-          return true;
-        });
+        const now = new Date();
+        const logicalDate = new Date(now);
+        if (now.getHours() < 6) {
+          logicalDate.setDate(logicalDate.getDate() - 1);
+        }
+        const todayStr = logicalDate.toISOString().slice(0, 10); // YYYY-MM-DD
+
+        return state.reminderLogs.map((r) => {
+          if (!r.time || typeof r.time !== 'string') return null;
+
+          let displayStatus = r.status;
+          const lastActionDateStr = r.takenAt || r.updatedAt;
+          
+          if (lastActionDateStr && (r.status === 'taken' || r.status === 'missed')) {
+            const actionDate = new Date(lastActionDateStr);
+            const actionLogicalDate = new Date(actionDate);
+            if (actionDate.getHours() < 6) {
+              actionLogicalDate.setDate(actionLogicalDate.getDate() - 1);
+            }
+            const actionStr = actionLogicalDate.toISOString().slice(0, 10);
+            
+            if (actionStr !== todayStr) {
+              displayStatus = 'upcoming';
+            }
+          }
+          
+          return { ...r, status: displayStatus };
+        }).filter(Boolean) as ReminderLog[];
       })(),
       refreshHouseholdData,
       signIn: async (provider, email, name, age, role, password, createAccount) => {

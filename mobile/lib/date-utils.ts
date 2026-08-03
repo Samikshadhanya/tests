@@ -25,5 +25,8 @@ export function formatExpiryStatus(date?: string | null) {
 
 export function getLocalTodayString() {
   const d = new Date();
+  if (d.getHours() < 6) {
+    d.setDate(d.getDate() - 1);
+  }
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
