@@ -57,8 +57,9 @@ service cloud.firestore {
       allow read: if belongsToHousehold(householdId);
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
       // FIX: Prevent owner from locking themselves out by modifying ownerUid
-      allow update: if signedIn() && resource.data.ownerUid == request.auth.uid &&
-                    request.resource.data.ownerUid == resource.data.ownerUid;
+      // Allow members to update the inviteCode
+      allow update: if (signedIn() && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == resource.data.ownerUid) || 
+                       (belongsToHousehold(householdId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inviteCode']));
       allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
@@ -102,6 +103,11 @@ service cloud.firestore {
     match /emergencyContacts/{householdId} {
       allow read: if belongsToHousehold(householdId);
       allow write: if belongsToHousehold(householdId);
+    }
+
+    match /householdInvites/{inviteCode} {
+      allow read: if signedIn();
+      allow create: if signedIn() && belongsToHousehold(request.resource.data.householdId);
     }
   }
 }
